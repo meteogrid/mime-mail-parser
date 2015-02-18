@@ -307,7 +307,3 @@ main = hspec $ do
   describe "Rfc2822.word" $
     it "parses hand-picked inputs correctly" $
       parseTest word "  foobar  " `shouldReturn` "foobar"
-
-  describe "Rfc2822.body" $
-    it "parses 8-bit characters correctly" $
-      parseIdemTest body "abc äöüß def"

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 {- |
    Module      :  Text.ParserCombinators.Attoparsec.Rfc2822
    Copyright   :  (c) 2013 Peter Simons
@@ -44,14 +45,14 @@ unfold           = between (optional cfws) (optional cfws)
 -- header's name and a parser for the body.
 
 header          :: ByteString -> Parser b -> Parser b
-header n p       = let nameString = caseString (n <> ":") <* space
+header n p       = let nameString = stringCI (n <> ":") <* space
                    in
                    between nameString crlf p <?> (S.unpack n ++ " header line")
 
 -- |Like 'header', but allows the obsolete white-space rules.
 
 obs_header      :: ByteString -> Parser b -> Parser b
-obs_header n p   = let nameString = caseString n >> many wsp >> char ':'
+obs_header n p   = let nameString = stringCI n >> many wsp >> char ':'
                    in between nameString crlf p <?>
                        ("obsolete " ++ S.unpack n ++ " header line")
 
@@ -145,12 +146,8 @@ cfws            = do r <- many1 $ choice [ fws, comment ]
 
 -- ** Atom (section 3.2.4)
 
--- |Match any US-ASCII character except for control characters,
+-- |Match any US-ASCII character strings except for control characters,
 -- 'specials', or space. 'atom' and 'dot_atom' are made up of this.
-
-atext           :: Parser Char
-atext           = alpha <|> digit <|> oneOf "!#$%&'*+-/=?^_`{|}~"
-                  <?> "US-ASCII character (excluding controls, space, and specials)"
 
 atextstring :: Parser ByteString
 atextstring = takeWhile1 (\c -> isAsciiAlpha c 
@@ -294,13 +291,13 @@ day_of_week     =     try (between (optional fws) (optional fws) day_name <?> "n
 -- and return the appropriate 'Day' value.
 
 day_name        :: Parser Day
-day_name        =     (caseString "Mon" *> pure Monday)
-                  <|> (caseString "Tue" *> pure Tuesday)
-                  <|> (caseString "Wed" *> pure Wednesday)
-                  <|> (caseString "Thu" *> pure Thursday)
-                  <|> (caseString "Fri" *> pure Friday)
-                  <|> (caseString "Sat" *> pure Saturday)
-                  <|> (caseString "Sun" *> pure Sunday)
+day_name        =     (stringCI "Mon" *> pure Monday)
+                  <|> (stringCI "Tue" *> pure Tuesday)
+                  <|> (stringCI "Wed" *> pure Wednesday)
+                  <|> (stringCI "Thu" *> pure Thursday)
+                  <|> (stringCI "Fri" *> pure Friday)
+                  <|> (stringCI "Sat" *> pure Saturday)
+                  <|> (stringCI "Sun" *> pure Sunday)
                   <?> "name of a day-of-the-week"
 
 -- |This parser will match a date of the form \"@dd:mm:yyyy@\" and return
@@ -340,18 +337,18 @@ month           =     try (between (optional fws) (optional fws) month_name <?> 
 -- and return the appropriate 'Month' value.
 
 month_name      :: Parser Month
-month_name      =     (caseString "Jan" *> pure January)
-                  <|> (caseString "Feb" *> pure February)
-                  <|> (caseString "Mar" *> pure March)
-                  <|> (caseString "Apr" *> pure April)
-                  <|> (caseString "May" *> pure May)
-                  <|> (caseString "Jun" *> pure June)
-                  <|> (caseString "Jul" *> pure July)
-                  <|> (caseString "Aug" *> pure August)
-                  <|> (caseString "Sep" *> pure September)
-                  <|> (caseString "Oct" *> pure October)
-                  <|> (caseString "Nov" *> pure November)
-                  <|> (caseString "Dec" *> pure December)
+month_name      =     (stringCI "Jan" *> pure January)
+                  <|> (stringCI "Feb" *> pure February)
+                  <|> (stringCI "Mar" *> pure March)
+                  <|> (stringCI "Apr" *> pure April)
+                  <|> (stringCI "May" *> pure May)
+                  <|> (stringCI "Jun" *> pure June)
+                  <|> (stringCI "Jul" *> pure July)
+                  <|> (stringCI "Aug" *> pure August)
+                  <|> (stringCI "Sep" *> pure September)
+                  <|> (stringCI "Oct" *> pure October)
+                  <|> (stringCI "Nov" *> pure November)
+                  <|> (stringCI "Dec" *> pure December)
                   <?> "month name"
 
 -- Internal helper function: match a 1 or 2-digit number (day of month).
@@ -569,8 +566,33 @@ isDText c = isNoWsCtl c || ord c `elem` ([33..90] ++ [94..126])
 -- represented in the 'Field' data type, and a message body, which may
 -- be empty.
 
-data GenericMessage a = Message [Field] a deriving Show
-type Message = GenericMessage ByteString
+data Message
+  = Message {
+        messageHeaders :: [Field]
+      , messageParts   :: [Part]
+    } deriving Show
+
+data Part
+  = Part {
+        partType     :: ByteString
+      , partEncoding :: Encoding
+      , partFilename :: Maybe ByteString
+      , partHeaders  :: [Field]
+      , partContent  :: ByteString
+      }
+  deriving Show
+
+data ContentTypeAttr
+  = Boundary ByteString
+  | Name     ByteString
+  | Charset  ByteString
+  | NoAttr
+  deriving Show
+
+
+data Encoding
+  = NoEncoding | Base64 | QuotedPrintable | Binary | Binary8Bit | Binary7Bit
+  deriving (Eq, Show)
 
 -- |Parse a complete message as defined by this RFC and it broken down
 -- into the separate header fields and the message body. Header lines,
@@ -588,16 +610,76 @@ type Message = GenericMessage ByteString
 -- the appropriate parser together yourself. You'll find that this is
 -- rather easy to do. Refer to the 'fields' parser for further details.
 
+{-
 message         :: Parser Message
 message         = do f <- fields
                      b <- option "" (do _ <- crlf; body)
                      return (Message f b)
+-}
+message :: Parser Message
+message = do
+  hs <- fields
+  parts <- case getContentType hs of
+             Just (ContentType "multipart/mixed" (Boundary boundary)) -> do
+               let bEnd   = string ("--" <> boundary <> "--") <* crlf
+                   bStart = string ("--" <> boundary) <* crlf
+               option [] (crlf *> skipWhile (/='-') *> bStart
+                               *> part `sepBy1` bStart
+                               <* bEnd)
+             _  -> do
+               body <- option "" (crlf *> takeByteString)
+               return [Part { partType     = "text/plain"
+                            , partEncoding = NoEncoding
+                            , partFilename = Nothing
+                            , partHeaders  = []
+                            , partContent  = body
+                            }]
+  return $ Message hs parts
 
--- |A message body is just an unstructured sequence of characters.
+part :: Parser Part
+part = do
+  hs <- fields
+  content <- option "" $ fmap S.concat
+              (crlf *> takeWhile1 (/='\r') `sepBy` crlf <* skipSpace)
+  let ctype  = maybe "text/plain" (\(ContentType ct _) -> ct)
+                     (getContentType hs)
+      cenc   = maybe NoEncoding (\(ContentTransferEncoding e) -> e)
+                     (getContentTransferEncoding hs)
+      cfname = maybe Nothing (\(ContentDisposition _ f) -> f)
+                     (getContentDisposition hs)
+  case (hs,content) of
+    ([],"") -> fail "empty part"
+    _       -> return Part { partType     = ctype
+                           , partEncoding = cenc
+                           , partFilename = cfname
+                           , partHeaders  = hs
+                           , partContent  = content
+                           }
 
-body            :: Parser ByteString
-body            = takeByteString
+getSubject :: [Field] -> Maybe Field
+getSubject = headMay . filter (\case {Subject{}->True; _->False})
 
+getContentType :: [Field] -> Maybe Field
+getContentType = headMay . filter (\case {ContentType{}->True; _->False})
+
+getContentLength :: [Field] -> Maybe Field
+getContentLength = headMay . filter (\case {ContentLength{}->True; _->False})
+
+getContentTransferEncoding :: [Field] -> Maybe Field
+getContentTransferEncoding
+  = headMay . filter (\case {ContentTransferEncoding{}->True; _->False})
+
+getContentDisposition :: [Field] -> Maybe Field
+getContentDisposition
+  = headMay . filter (\case {ContentDisposition{}->True; _->False})
+
+getFrom :: [Field] -> Maybe Field
+getFrom
+  = headMay . filter (\case {From{}->True; _->False})
+
+headMay :: [a] -> Maybe a
+headMay []    = Nothing
+headMay (x:_) = Just x
 
 -- * Field definitions (section 3.6)
 
@@ -630,6 +712,16 @@ data Field      = OptionalField       ByteString ByteString
                 | ResentReplyTo       [NameAddr]
                 | Received            ([(ByteString,ByteString)], CalendarTime)
                 | ObsReceived         [(ByteString,ByteString)]
+                | ContentType {
+                      ctMime :: ByteString
+                    , ctAttr :: ContentTypeAttr
+                    }
+                | ContentLength Integer
+                | ContentTransferEncoding Encoding
+                | ContentDisposition {
+                      cdDisposition :: ByteString
+                    , cdFilename    :: Maybe ByteString
+                    }
                 deriving (Show)
 
 -- |This parser will parse an arbitrary number of header fields as
@@ -644,32 +736,78 @@ data Field      = OptionalField       ByteString ByteString
 -- hardly ever return a syntax error -- what conforms with the idea
 -- that any message that can possibly be accepted /should/ be.
 
-fields          :: Parser [Field]
-fields          = many (    try (do { r <- from; return (From r) })
-                        <|> try (do { r <- sender; return (Sender r) })
-                        <|> try (do { r <- return_path; return (ReturnPath r) })
-                        <|> try (do { r <- reply_to; return (ReplyTo r) })
-                        <|> try (do { r <- to; return (To r) })
-                        <|> try (do { r <- cc; return (Cc r) })
-                        <|> try (do { r <- bcc; return (Bcc r) })
-                        <|> try (do { r <- message_id; return (MessageID r) })
-                        <|> try (do { r <- in_reply_to; return (InReplyTo r) })
-                        <|> try (do { r <- references; return (References r) })
-                        <|> try (do { r <- subject; return (Subject r) })
-                        <|> try (do { r <- comments; return (Comments r) })
-                        <|> try (do { r <- keywords; return (Keywords r) })
-                        <|> try (do { r <- orig_date; return (Date r) })
-                        <|> try (do { r <- resent_date; return (ResentDate r) })
-                        <|> try (do { r <- resent_from; return (ResentFrom r) })
-                        <|> try (do { r <- resent_sender; return (ResentSender r) })
-                        <|> try (do { r <- resent_to; return (ResentTo r) })
-                        <|> try (do { r <- resent_cc; return (ResentCc r) })
-                        <|> try (do { r <- resent_bcc; return (ResentBcc r) })
-                        <|> try (do { r <- resent_msg_id; return (ResentMessageID r) })
-                        <|> try (do { r <- received; return (Received r) })
-                         -- catch all
-                        <|> (do { (name,cont) <- optional_field; return (OptionalField name cont) })
-                       )
+fields :: Parser [Field]
+fields
+  = many
+    (   From <$> from
+    <|> Sender <$> sender
+    <|> ReturnPath <$> return_path
+    <|> ReplyTo <$> reply_to
+    <|> To <$> to
+    <|> Cc <$> cc
+    <|> Bcc <$> bcc
+    <|> MessageID <$> message_id
+    <|> InReplyTo <$> in_reply_to
+    <|> References <$> references
+    <|> Subject <$> subject
+    <|> Comments <$> comments
+    <|> Keywords <$> keywords
+    <|> Date <$> orig_date
+    <|> ResentDate <$> resent_date
+    <|> ResentFrom <$> resent_from
+    <|> ResentSender <$> resent_sender
+    <|> ResentTo <$> resent_to
+    <|> ResentCc <$> resent_cc
+    <|> ResentBcc <$> resent_bcc
+    <|> ResentMessageID <$> resent_msg_id
+    <|> Received <$> received
+    <|> ContentTransferEncoding <$> content_transfer_encoding
+    <|> ContentLength <$> content_length
+    <|> uncurry ContentType <$> content_type
+    <|> uncurry ContentDisposition <$> content_disposition
+    -- catch all
+    <|> uncurry OptionalField <$> optional_field
+    )
+
+-- |Parse a 'ContentTransferEncoding' header
+content_transfer_encoding :: Parser Encoding
+content_transfer_encoding
+  = header "Content-Transfer-Encoding"
+    (   "base64"           *> pure Base64
+    <|> "quoted-printable" *> pure QuotedPrintable
+    <|> "binary"           *> pure Binary
+    <|> "8bit"             *> pure Binary8Bit
+    <|> "7bit"             *> pure Binary7Bit
+    )
+
+-- |Parse a 'ContentLength' header
+content_length :: Parser Integer
+content_length = header "Content-Length" decimal
+
+-- |Parse a 'ContentType' header
+content_type :: Parser (ByteString, ContentTypeAttr)
+content_type = header "Content-Type" $ do
+  ct <- takeWhile1 (\c -> c/=';' && not (isEndOfLine c))
+  let boundary = Boundary <$> (skipWhile (/='b') *> keyVal "boundary")
+      name     = Name     <$> (skipWhile (/='n') *> keyVal "name")
+      charset  = Charset  <$> (skipWhile (/='c') *> keyVal "charset")
+
+  attr <- option NoAttr ((boundary <|> name <|> charset) <* unstructured)
+  return (ct,attr)
+
+keyVal :: ByteString -> Parser ByteString
+keyVal k
+  = string k *> skipSpace *> "=" *> skipSpace *> "\"" *> takeWhile (/='"')
+
+-- |Parse a 'ContentDisposition' header
+content_disposition :: Parser (ByteString, Maybe ByteString)
+content_disposition = header "Content-Disposition" $ do
+  cd <- takeWhile1 (\c -> c/=';' && not (isEndOfLine c))
+  filename <- option Nothing $ fmap Just $
+                skipWhile (/='f') *> "filename=\""
+                                  *> takeWhile1 (/='"')
+                                  <* unstructured
+  return (cd,filename)
 
 
 -- ** The origination date field (section 3.6.1)
