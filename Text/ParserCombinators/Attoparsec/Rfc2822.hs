@@ -197,16 +197,17 @@ qcontent        = takeWhile1 isQText <|> quoted_pair
 -- preceeding or following the \"atom\" is skipped automatically.
 
 quoted_string   :: Parser ByteString
-quoted_string   = unfold (
-                    do _ <- dquote
-                       r1 <- many (do r1 <- option "" fws
-                                      r2 <- qcontent
-                                      return (r1 <> r2))
-                       r2 <- option "" fws
-                       _ <- dquote
-                       return ("\"" <> S.concat r1 <> r2 <> "\""))
-                  <?> "quoted string"
+quoted_string   = unfold quoted_string_text
 
+quoted_string_text   :: Parser ByteString
+quoted_string_text = (do
+  _ <- dquote
+  r1 <- many (do r1 <- option "" fws
+                 r2 <- qcontent
+                 return (r1 <> r2))
+  r2 <- option "" fws
+  _ <- dquote
+  return ("\"" <> S.concat r1 <> r2 <> "\"")) <?> "quoted string"
 
 -- * Miscellaneous tokens (section 3.2.6)
 
@@ -471,7 +472,8 @@ angle_addr      = try (unfold (do _ <- char '<'
 -- semicolon. The found address(es) are returned - what may be none.
 -- Here is an example:
 --
--- >>> parse group "" "my group: user1@example.org, user2@example.org;"
+-- >>> :set -XOverloadedStrings
+-- >>> parseOnly group "my group: user1@example.org, user2@example.org;"
 -- Right [NameAddr {nameAddr_name = Nothing, nameAddr_addr = "user1@example.org"},NameAddr {nameAddr_name = Nothing, nameAddr_addr = "user2@example.org"}]
 
 group           :: Parser [NameAddr]
@@ -519,14 +521,14 @@ addr_spec       = do r1 <- local_part
 -- a 'dot_atom' or a 'quoted_string'.
 
 local_part      :: Parser ByteString
-local_part      = obs_local_part <|> dot_atom <|> quoted_string
+local_part      = obs_local_part <|> dot_atom_text <|> quoted_string_text
                   <?> "address' local part"
 
 -- |Parse and return a \"domain part\" of an 'addr_spec'. That is either
 -- a 'dot_atom' or a 'domain_literal'.
 
 domain          :: Parser ByteString
-domain          = obs_domain <|> dot_atom <|> domain_literal
+domain          = obs_domain <|> dot_atom_text <|> domain_literal_text
                   <?> "address' domain part"
 
 -- |Parse a \"domain literal\". That is a \"@[@\" character, followed by
@@ -534,12 +536,15 @@ domain          = obs_domain <|> dot_atom <|> domain_literal
 -- character. The complete string is returned verbatim.
 
 domain_literal  :: Parser ByteString
-domain_literal  = unfold (do _ <- char '['
-                             r <- many (optional fws >> dcontent)
-                             _ <- optional fws
-                             _ <- char ']'
-                             return ("[" <> S.concat r <> "]"))
-                  <?> "domain literal"
+domain_literal  = unfold domain_literal_text
+
+domain_literal_text  :: Parser ByteString
+domain_literal_text = (do
+  _ <- char '['
+  r <- many (optional fws >> dcontent)
+  _ <- optional fws
+  _ <- char ']'
+  return ("[" <> S.concat r <> "]")) <?> "domain literal"
 
 -- |Parse and return any characters that are legal in a
 -- 'domain_literal'. That is 'dtext' or a 'quoted_pair'.
@@ -1096,7 +1101,8 @@ obs_zone        = choice [ mkZone "UT"  0
 -- liberal insertion of folding whitespace and comments and (2) the address may
 -- contain a \"route\" (which this parser ignores):
 --
--- >>> parse obs_angle_addr "" "<@example1.org,@example2.org:joe@example.org>"
+-- >>> :set -XOverloadedStrings
+-- >>> parseOnly obs_angle_addr "<@example1.org,@example2.org:joe@example.org>"
 -- Right "<joe@example.org>"
 
 obs_angle_addr  :: Parser ByteString
@@ -1163,15 +1169,15 @@ obs_domain      = do r1 <- atom
 -- contains /no/ 'mailbox' at all. On the other hand, you /must/ have
 -- at least one comma. The following example is valid:
 --
--- >>> parse obs_mbox_list "" ","
+-- >>> :set -XOverloadedStrings
+-- >>> parseOnly obs_mbox_list ","
 -- Right []
 --
 -- But this one is not:
 --
--- >>> parse obs_mbox_list "" "joe@example.org"
--- Left (line 1, column 16):
--- unexpected end of input
--- expecting obsolete syntax for a list of mailboxes
+-- >>> :set -XOverloadedStrings
+-- >>> parseOnly obs_mbox_list "joe@example.org"
+-- Left "not enough input"
 
 obs_mbox_list   :: Parser [NameAddr]
 obs_mbox_list   = do r1 <- many1 (try (do r <- maybeOption mailbox
