@@ -1,5 +1,5 @@
 {- |
-   Module      :  Text.ParserCombinators.Parsec.Rfc2821
+   Module      :  Text.ParserCombinators.AttoParsec.Rfc2821
    Copyright   :  (c) 2013 Peter Simons
    License     :  BSD3
 
@@ -12,14 +12,14 @@
    <http://www.faqs.org/rfcs/rfc2821.html>.
 -}
 
-module Text.ParserCombinators.Parsec.Rfc2821 where
+module Text.ParserCombinators.AttoParsec.Rfc2821 where
 
 import Control.Exception ( assert )
 import Control.Monad.State
 import Text.ParserCombinators.Parsec
 import Data.List ( intercalate )
 import Data.Char ( toLower )
-import Text.ParserCombinators.Parsec.Rfc2234
+import Text.ParserCombinators.AttoParsec.Rfc2234
 
 -- Customize hlint ...
 {-# ANN module "HLint: ignore Use camelCase" #-}

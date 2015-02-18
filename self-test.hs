@@ -15,7 +15,7 @@ module Main ( main ) where
 import Test.Hspec
 import System.Time ( CalendarTime(..), Month(..), Day(..) )
 import Text.ParserCombinators.Parsec ( parse, eof, CharParser )
-import Text.ParserCombinators.Parsec.Rfc2822
+import Text.ParserCombinators.AttoParsec.Rfc2822
 
 parseTest :: CharParser () a -> String -> IO a
 parseTest p input = case parse (do { r <- p; eof; return r }) (show input) input of

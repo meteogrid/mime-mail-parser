@@ -1,5 +1,5 @@
 {- |
-   Module      :  Text.ParserCombinators.Parsec.Rfc2822
+   Module      :  Text.ParserCombinators.AttoParsec.Rfc2822
    Copyright   :  (c) 2013 Peter Simons
    License     :  BSD3
 
@@ -12,7 +12,7 @@
    <http://www.faqs.org/rfcs/rfc2822.html>.
 -}
 
-module Text.ParserCombinators.Parsec.Rfc2822 where
+module Text.ParserCombinators.AttoParsec.Rfc2822 where
 
 import System.Time
 import Data.Char ( ord )
@@ -20,7 +20,7 @@ import Data.List ( intercalate )
 import Data.Maybe ( catMaybes )
 import Control.Monad ( liftM )
 import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Rfc2234 hiding ( quoted_pair, quoted_string )
+import Text.ParserCombinators.AttoParsec.Rfc2234 hiding ( quoted_pair, quoted_string )
 
 -- Customize hlint ...
 {-# ANN module "HLint: ignore Use camelCase" #-}

@@ -1,5 +1,5 @@
 {- |
-   Module      :  Text.ParserCombinators.Parsec.Rfc2234
+   Module      :  Text.ParserCombinators.AttoParsec.Rfc2234
    Copyright   :  (c) 2013 Peter Simons
    License     :  BSD3
 
@@ -11,10 +11,10 @@
    RFC2234, \"Augmented BNF for Syntax Specifications:
    ABNF\", <http://www.faqs.org/rfcs/rfc2234.html>. The
    terminal called @char@ in the RFC is called 'character'
-   here to avoid conflicts with Parsec's 'char' function.
+   here to avoid conflicts with AttoParsec's 'char' function.
  -}
 
-module Text.ParserCombinators.Parsec.Rfc2234 where
+module Text.ParserCombinators.AttoParsec.Rfc2234 where
 
 import Text.ParserCombinators.Parsec
 import Data.Char ( toUpper, chr, ord )

@@ -1,9 +1,9 @@
 Name:                   hsemail
-Version:                1.7.7
-Copyright:              (c) 2013 Peter Simons
+Version:                2.0.0
+Copyright:              (c) 2013-2015 Peter Simons
 License:                BSD3
 License-File:           LICENSE
-Author:                 Peter Simons <simons@cryp.to>, Gero Kriependorf <gero-dev@physra.net>, Marty Pauley <marty@kasei.com>
+Author:                 Peter Simons <simons@cryp.to>, Gero Kriependorf <gero-dev@physra.net>, Marty Pauley <marty@kasei.com>, Alberto Valverde <alberto@toscat.net>
 Maintainer:             Peter Simons <simons@cryp.to>
 Homepage:               http://github.com/peti/hsemail
 Category:               Parsing
@@ -24,9 +24,9 @@ Source-Repository head
 
 Library
   Build-Depends:        base >= 3 && < 5, mtl, parsec, old-time
-  Exposed-Modules:      Text.ParserCombinators.Parsec.Rfc2234
-                        Text.ParserCombinators.Parsec.Rfc2821
-                        Text.ParserCombinators.Parsec.Rfc2822
+  Exposed-Modules:      Text.ParserCombinators.AttoParsec.Rfc2234
+                        Text.ParserCombinators.AttoParsec.Rfc2821
+                        Text.ParserCombinators.AttoParsec.Rfc2822
   Ghc-Options:          -Wall
 
 Test-Suite test-hsemail
