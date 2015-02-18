@@ -16,7 +16,6 @@ import Test.DocTest
 
 main :: IO ()
 main = doctest
-       [ "Text/ParserCombinators/AttoParsec/Rfc2234.hs"
-       , "Text/ParserCombinators/AttoParsec/Rfc2821.hs"
-       , "Text/ParserCombinators/AttoParsec/Rfc2822.hs"
+       [ "Text/ParserCombinators/Attoparsec/Rfc2234.hs"
+       , "Text/ParserCombinators/Attoparsec/Rfc2822.hs"
        ]

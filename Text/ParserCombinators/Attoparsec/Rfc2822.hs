@@ -1,29 +1,30 @@
+{-# LANGUAGE OverloadedStrings #-}
 {- |
-   Module      :  Text.ParserCombinators.AttoParsec.Rfc2822
+   Module      :  Text.ParserCombinators.Attoparsec.Rfc2822
    Copyright   :  (c) 2013 Peter Simons
    License     :  BSD3
 
    Maintainer  :  simons@cryp.to
    Stability   :  provisional
-   Portability :  portable
+   Portability :  unknown
 
    This module provides parsers for the grammar defined in
    RFC2822, \"Internet Message Format\",
    <http://www.faqs.org/rfcs/rfc2822.html>.
 -}
 
-module Text.ParserCombinators.AttoParsec.Rfc2822 where
+module Text.ParserCombinators.Attoparsec.Rfc2822 where
 
 import System.Time
-import Data.Char ( ord )
-import Data.List ( intercalate )
-import Data.Maybe ( catMaybes )
-import Control.Monad ( liftM )
-import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.AttoParsec.Rfc2234 hiding ( quoted_pair, quoted_string )
-
--- Customize hlint ...
-{-# ANN module "HLint: ignore Use camelCase" #-}
+import Data.Char (ord)
+import Data.Maybe (catMaybes)
+import Control.Applicative (many, pure, (<$>), (<*), (*>), (<|>))
+import Data.Monoid ((<>))
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as S
+import Text.ParserCombinators.Attoparsec.Rfc2234 hiding (quoted_pair, quoted_string)
+import Text.ParserCombinators.Attoparsec.ParsecCompat
+import Prelude hiding (take, takeWhile)
 
 -- * Useful parser combinators
 
@@ -31,47 +32,53 @@ import Text.ParserCombinators.AttoParsec.Rfc2234 hiding ( quoted_pair, quoted_st
 -- combinator is included in the latest parsec distribution as
 -- @optionMaybe@, but ghc-6.6.1 apparently doesn't have it.
 
-maybeOption    :: GenParser tok st a -> GenParser tok st (Maybe a)
-maybeOption p   = option Nothing (liftM Just p)
+maybeOption    :: Parser a -> Parser (Maybe a)
+maybeOption p   = option Nothing (fmap Just p)
 
 -- |@unfold@ @=@ @between (optional cfws) (optional cfws)@
 
-unfold          :: CharParser a b -> CharParser a b
+unfold          :: Parser b -> Parser b
 unfold           = between (optional cfws) (optional cfws)
 
 -- |Construct a parser for a message header line from the
 -- header's name and a parser for the body.
 
-header          :: String -> CharParser a b -> CharParser a b
-header n p       = let nameString = caseString (n ++ ":")
+header          :: ByteString -> Parser b -> Parser b
+header n p       = let nameString = caseString (n <> ":") <* space
                    in
-                   between nameString crlf p <?> (n ++ " header line")
+                   between nameString crlf p <?> (S.unpack n ++ " header line")
 
 -- |Like 'header', but allows the obsolete white-space rules.
 
-obs_header      :: String -> CharParser a b -> CharParser a b
+obs_header      :: ByteString -> Parser b -> Parser b
 obs_header n p   = let nameString = caseString n >> many wsp >> char ':'
-                   in
-                   between nameString crlf p <?> ("obsolete " ++ n ++ " header line")
+                   in between nameString crlf p <?>
+                       ("obsolete " ++ S.unpack n ++ " header line")
 
 
 -- ** Primitive Tokens (section 3.2.1)
 
 -- |Match any US-ASCII non-whitespace control character.
 
-no_ws_ctl       :: CharParser a Char
-no_ws_ctl       = satisfy (\c -> ord c `elem` ([1..8] ++ [11,12] ++ [14..31] ++ [127]))
+no_ws_ctl       :: Parser Char
+no_ws_ctl       = satisfy isNoWsCtl
                   <?> "US-ASCII non-whitespace control character"
+
+isNoWsCtl :: Char -> Bool
+isNoWsCtl c = ord c `elem` ([1..8] ++ [11,12] ++ [14..31] ++ [127])
 
 -- |Match any US-ASCII character except for @\r@, @\n@.
 
-text            :: CharParser a Char
-text            = satisfy (\c -> ord c `elem` ([1..9] ++ [11,12] ++ [14..127]))
+text            :: Parser Char
+text            = satisfy isText
                   <?> "US-ASCII character (excluding CR and LF)"
+
+isText :: Char -> Bool
+isText c = ord c `elem` ([1..9] ++ [11,12] ++ [14..127])
 
 -- |Match any of the RFC's \"special\" characters: @()\<\>[]:;\@,.\\\"@.
 
-specials        :: CharParser a Char
+specials        :: Parser Char
 specials        = oneOf "()<>[]:;@,.\\\""   <?> "one of ()<>[]:;@,.\\\""
 
 
@@ -81,8 +88,10 @@ specials        = oneOf "()<>[]:;@,.\\\""   <?> "one of ()<>[]:;@,.\\\""
 -- quoted. Note that the parsers returns /both/ characters, the
 -- backslash and the actual content.
 
-quoted_pair     :: CharParser a String
-quoted_pair     = try obs_qp <|> do { _ <- char '\\'; r <- text; return ['\\',r] }
+quoted_pair     :: Parser ByteString
+quoted_pair     = try obs_qp <|> do {_ <- char '\\';
+                                     r <- text;
+                                     return (S.pack ['\\',r])}
                   <?> "quoted pair"
 
 
@@ -91,12 +100,11 @@ quoted_pair     = try obs_qp <|> do { _ <- char '\\'; r <- text; return ['\\',r]
 -- |Match \"folding whitespace\". That is any combination of 'wsp' and
 -- 'crlf' followed by 'wsp'.
 
-fws             :: CharParser a String
-fws             = do r <- many1 $ choice [ blanks, linebreak]
-                     return (concat r)
-    where
-    blanks      = many1 wsp
-    linebreak   = try $ do { r1 <- crlf; r2 <- blanks; return (r1 ++ r2) }
+fws :: Parser ByteString
+fws = S.concat <$> many1 (choice [blanks, linebreak])
+  where
+    blanks      = takeWhile1 isHorizontalSpace
+    linebreak   = try $ do { r1 <- crlf; r2 <- blanks; return (r1 <> r2) }
 
 -- |Match any non-whitespace, non-control character except for \"@(@\",
 -- \"@)@\", and \"@\\@\". This is used to describe the legal content of
@@ -107,55 +115,63 @@ fws             = do r <- many1 $ choice [ blanks, linebreak]
 -- comments has become fairly common in the real world, so we'll just
 -- accept the fact.
 
-ctext           :: CharParser a Char
-ctext           = no_ws_ctl <|> satisfy (\c -> ord c `elem` ([33..39] ++ [42..91] ++ [93..126] ++ [128..255]))
+ctext           :: Parser Char
+ctext           = satisfy isCtext
                   <?> "any regular character (excluding '(', ')', and '\\')"
+isCtext :: Char -> Bool
+isCtext c = isNoWsCtl c
+         || ord c `elem` ([33..39] ++ [42..91] ++ [93..126] ++ [128..255])
 
 -- |Match a \"comments\". That is any combination of 'ctext',
 -- 'quoted_pair's, and 'fws' between brackets. Comments may nest.
 
-comment         :: CharParser a String
+comment         :: Parser ByteString
 comment         = do _ <- char '('
                      r1 <- many ccontent
-                     r2 <- option [] fws
+                     r2 <- option "" fws
                      _ <- char ')'
-                     return ("(" ++ concat r1 ++ r2 ++ ")")
+                     return ("(" <> S.concat r1 <> r2 <> ")")
                   <?> "comment"
     where
-    ccontent    = try $ do r1 <- option [] fws
-                           r2 <- choice [many1 ctext, quoted_pair, comment]
-                           return (r1 ++ r2)
+    ccontent    = try $ do r1 <- option "" fws
+                           r2 <- choice [takeWhile1 isCtext, quoted_pair, comment]
+                           return (r1 <> r2)
 
 -- |Match any combination of 'fws' and 'comments'.
 
-cfws            :: CharParser a String
+cfws            :: Parser ByteString
 cfws            = do r <- many1 $ choice [ fws, comment ]
-                     return (concat r)
+                     return (S.concat r)
 
 -- ** Atom (section 3.2.4)
 
 -- |Match any US-ASCII character except for control characters,
 -- 'specials', or space. 'atom' and 'dot_atom' are made up of this.
 
-atext           :: CharParser a Char
+atext           :: Parser Char
 atext           = alpha <|> digit <|> oneOf "!#$%&'*+-/=?^_`{|}~"
                   <?> "US-ASCII character (excluding controls, space, and specials)"
+
+atextstring :: Parser ByteString
+atextstring = takeWhile1 (\c -> isAsciiAlpha c 
+                             || isDigit c
+                             || c `elem` "!#$%&'*+-/=?^_`{|}~")
 
 -- |Match one or more 'atext' characters and skip any preceeding or
 -- trailing 'cfws'.
 
-atom            :: CharParser a String
-atom            = unfold (many1 atext <?> "atom")
+atom            :: Parser ByteString
+atom            = unfold (atextstring <?> "atom")
 
 -- |Match 'dot_atom_text' and skip any preceeding or trailing 'cfws'.
 
-dot_atom        :: CharParser a String
+dot_atom        :: Parser ByteString
 dot_atom        = unfold (dot_atom_text <?> "dot atom")
 
 -- |Match two or more 'atext's interspersed by dots.
 
-dot_atom_text   :: CharParser a String
-dot_atom_text   = fmap (intercalate ".") (sepBy1 (many1 atext) (char '.'))
+dot_atom_text   :: Parser ByteString
+dot_atom_text   = fmap (S.intercalate ".") (sepBy1 atextstring (char '.'))
                   <?> "dot atom content"
 
 
@@ -164,27 +180,31 @@ dot_atom_text   = fmap (intercalate ".") (sepBy1 (many1 atext) (char '.'))
 -- |Match any non-whitespace, non-control US-ASCII character except
 -- for \"@\\@\" and \"@\"@\".
 
-qtext           :: CharParser a Char
-qtext           = no_ws_ctl <|> satisfy (\c -> ord c `elem` ([33] ++ [35..91] ++ [93..126]))
+qtext           :: Parser Char
+qtext           = satisfy isQText
                   <?> "US-ASCII character (excluding '\\', and '\"')"
+
+isQText :: Char -> Bool
+isQText c = isNoWsCtl c || ord c `elem` ([33] ++ [35..91] ++ [93..126])
 
 -- |Match either 'qtext' or 'quoted_pair'.
 
-qcontent        :: CharParser a String
-qcontent        = many1 qtext <|> quoted_pair
+qcontent        :: Parser ByteString
+qcontent        = takeWhile1 isQText <|> quoted_pair
                   <?> "quoted string content"
 
 -- |Match any number of 'qcontent' between double quotes. Any 'cfws'
 -- preceeding or following the \"atom\" is skipped automatically.
 
-quoted_string   :: CharParser a String
-quoted_string   = unfold (do _ <- dquote
-                             r1 <- many (do r1 <- option [] fws
-                                            r2 <- qcontent
-                                            return (r1 ++ r2))
-                             r2 <- option [] fws
-                             _ <- dquote
-                             return ("\"" ++ concat r1 ++ r2 ++ "\""))
+quoted_string   :: Parser ByteString
+quoted_string   = unfold (
+                    do _ <- dquote
+                       r1 <- many (do r1 <- option "" fws
+                                      r2 <- qcontent
+                                      return (r1 <> r2))
+                       r2 <- option "" fws
+                       _ <- dquote
+                       return ("\"" <> S.concat r1 <> r2 <> "\""))
                   <?> "quoted string"
 
 
@@ -192,18 +212,18 @@ quoted_string   = unfold (do _ <- dquote
 
 -- |Match either 'atom' or 'quoted_string'.
 
-word            :: CharParser a String
+word            :: Parser ByteString
 word            = unfold (atom <|> quoted_string)     <?> "word"
 
 -- |Match either one or more 'word's or an 'obs_phrase'.
 
-phrase          :: CharParser a [String]
+phrase          :: Parser [ByteString]
 phrase          = {- many1 word <?> "phrase" <|> -} obs_phrase
 
 -- |Match any non-whitespace, non-control US-ASCII character except
 -- for \"@\\@\" and \"@\"@\".
 
-utext           :: CharParser a Char
+utext           :: Parser Char
 utext           = no_ws_ctl <|> satisfy (\c -> ord c `elem` [33..126])
                   <?> "regular US-ASCII character (excluding '\\', and '\"')"
 
@@ -213,13 +233,13 @@ utext           = no_ws_ctl <|> satisfy (\c -> ord c `elem` [33..126])
 -- Please note that any comments or whitespace that prefaces or
 -- follows the actual 'utext' is /included/ in the returned string.
 
-unstructured    :: CharParser a String
-unstructured    = do r1 <- option [] fws
-                     r2 <- many (do r3 <- utext
-                                    r4 <- option [] fws
-                                    return (r3 : r4))
-                     return (r1 ++ concat r2)
-                  <?> "unstructured text"
+unstructured :: Parser ByteString
+unstructured = do r1 <- option "" fws
+                  r2 <- many (do r3 <- utext
+                                 r4 <- option "" fws
+                                 return (r3 `S.cons` r4))
+                  return (r1 <> S.concat r2)
+               <?> "unstructured text"
 
 
 -- * Date and Time Specification (section 3.3)
@@ -251,42 +271,42 @@ unstructured    = do r1 <- option [] fws
 -- return /local time/. This will not necessarily be the time you're
 -- expecting.)
 
-date_time       :: CharParser a CalendarTime
+date_time       :: Parser CalendarTime
 date_time       = do wd <- option Monday (try (do wd <- day_of_week
                                                   _ <- char ','
                                                   return wd))
                      (y,m,d) <- date
                      _ <- fws
                      (td,z) <- time
-                     optional cfws
+                     _ <- optional cfws
                      return (CalendarTime y m d (tdHour td) (tdMin td) (tdSec td) 0 wd 0 "" z False)
                   <?> "date/time specification"
 
 -- |This parser matches a 'day_name' or an 'obs_day_of_week' (optionally
 -- wrapped in folding whitespace) and return its 'Day' value.
 
-day_of_week     :: CharParser a Day
+day_of_week     :: Parser Day
 day_of_week     =     try (between (optional fws) (optional fws) day_name <?> "name of a day-of-the-week")
                   <|> obs_day_of_week
 
 -- |This parser will the abbreviated weekday names (\"@Mon@\", \"@Tue@\", ...)
 -- and return the appropriate 'Day' value.
 
-day_name        :: CharParser a Day
-day_name        =     do { caseString "Mon"; return Monday }
-                  <|> do { try (caseString "Tue"); return Tuesday }
-                  <|> do { caseString "Wed"; return Wednesday }
-                  <|> do { caseString "Thu"; return Thursday }
-                  <|> do { caseString "Fri"; return Friday }
-                  <|> do { try (caseString "Sat"); return Saturday }
-                  <|> do { caseString "Sun"; return Sunday }
+day_name        :: Parser Day
+day_name        =     (caseString "Mon" *> pure Monday)
+                  <|> (caseString "Tue" *> pure Tuesday)
+                  <|> (caseString "Wed" *> pure Wednesday)
+                  <|> (caseString "Thu" *> pure Thursday)
+                  <|> (caseString "Fri" *> pure Friday)
+                  <|> (caseString "Sat" *> pure Saturday)
+                  <|> (caseString "Sun" *> pure Sunday)
                   <?> "name of a day-of-the-week"
 
 -- |This parser will match a date of the form \"@dd:mm:yyyy@\" and return
 -- a tripple of the form (Int,Month,Int) - corresponding to
 -- (year,month,day).
 
-date            :: CharParser a (Int,Month,Int)
+date            :: Parser (Int,Month,Int)
 date            = do d <- day
                      m <- month
                      y <- year
@@ -296,16 +316,21 @@ date            = do d <- day
 -- |This parser will match a four digit number and return its integer
 -- value. No range checking is performed.
 
-year            :: CharParser a Int
-year            = do y <- manyN 4 digit
-                     return (read y :: Int)
-                  <?> "year"
+year            :: Parser Int
+year            = readIntN 4 <?> "year"
+
+-- |This parser will match a N digit number and return its integer value
+readIntN :: Int -> Parser Int
+readIntN n = do y <- take n
+                case S.readInt y of
+                  Just (r,"") -> return r
+                  _           -> fail "readIntN"
 
 -- |This parser will match a 'month_name', optionally wrapped in
 -- folding whitespace, or an 'obs_month' and return its 'Month'
 -- value.
 
-month           :: CharParser a Month
+month           :: Parser Month
 month           =     try (between (optional fws) (optional fws) month_name <?> "month name")
                   <|> obs_month
 
@@ -313,37 +338,37 @@ month           =     try (between (optional fws) (optional fws) month_name <?> 
 -- |This parser will the abbreviated month names (\"@Jan@\", \"@Feb@\", ...)
 -- and return the appropriate 'Month' value.
 
-month_name      :: CharParser a Month
-month_name      =     do { try (caseString "Jan"); return January }
-                  <|> do { caseString "Feb"; return February }
-                  <|> do { try (caseString "Mar"); return March }
-                  <|> do { try (caseString "Apr"); return April }
-                  <|> do { caseString "May"; return May }
-                  <|> do { try (caseString "Jun"); return June }
-                  <|> do { caseString "Jul"; return July }
-                  <|> do { caseString "Aug"; return August }
-                  <|> do { caseString "Sep"; return September }
-                  <|> do { caseString "Oct"; return October }
-                  <|> do { caseString "Nov"; return November }
-                  <|> do { caseString "Dec"; return December }
+month_name      :: Parser Month
+month_name      =     (caseString "Jan" *> pure January)
+                  <|> (caseString "Feb" *> pure February)
+                  <|> (caseString "Mar" *> pure March)
+                  <|> (caseString "Apr" *> pure April)
+                  <|> (caseString "May" *> pure May)
+                  <|> (caseString "Jun" *> pure June)
+                  <|> (caseString "Jul" *> pure July)
+                  <|> (caseString "Aug" *> pure August)
+                  <|> (caseString "Sep" *> pure September)
+                  <|> (caseString "Oct" *> pure October)
+                  <|> (caseString "Nov" *> pure November)
+                  <|> (caseString "Dec" *> pure December)
                   <?> "month name"
 
 -- Internal helper function: match a 1 or 2-digit number (day of month).
 
-day_of_month    :: CharParser a Int
-day_of_month    = fmap read (manyNtoM 1 2 digit)
+day_of_month    :: Parser Int
+day_of_month    = readIntN 2 <|> readIntN 1
 
 -- |Match a 1 or 2-digit number (day of month), recognizing both
 -- standard and obsolete folding syntax.
 
-day             :: CharParser a Int
+day             :: Parser Int
 day             = try obs_day <|> day_of_month <?> "day"
 
 -- |This parser will match a 'time_of_day' specification followed by a
 -- 'zone'. It returns the tuple (TimeDiff,Int) corresponding to the
 -- return values of either parser.
 
-time            :: CharParser a (TimeDiff,Int)
+time            :: Parser (TimeDiff,Int)
 time            = do t <- time_of_day
                      _ <- fws
                      z <- zone
@@ -353,7 +378,7 @@ time            = do t <- time_of_day
 -- |This parser will match a time-of-day specification of \"@hh:mm@\" or
 -- \"@hh:mm:ss@\" and return the corrsponding time as a 'TimeDiff'.
 
-time_of_day     :: CharParser a TimeDiff
+time_of_day     :: Parser TimeDiff
 time_of_day     = do h <- hour
                      _ <- char ':'
                      m <- minute
@@ -364,32 +389,26 @@ time_of_day     = do h <- hour
 -- |This parser will match a two-digit number and return its integer
 -- value. No range checking is performed.
 
-hour            :: CharParser a Int
-hour            = do r <- count 2 digit
-                     return (read r :: Int)
-                  <?> "hour"
+hour            :: Parser Int
+hour            = readIntN 2 <?> "hour"
 
 -- |This parser will match a two-digit number and return its integer
 -- value. No range checking is performed.
 
-minute          :: CharParser a Int
-minute          = do r <- count 2 digit
-                     return (read r :: Int)
-                  <?> "minute"
+minute          :: Parser Int
+minute          = readIntN 2 <?> "minute"
 
 -- |This parser will match a two-digit number and return its integer
 -- value. No range checking takes place.
 
-second          :: CharParser a Int
-second          = do r <- count 2 digit
-                     return (read r :: Int)
-                  <?> "second"
+second          :: Parser Int
+second          = readIntN 2 <?> "second"
 
 -- |This parser will match a timezone specification of the form
 -- \"@+hhmm@\" or \"@-hhmm@\" and return the zone's offset to UTC in
 -- seconds as an integer. 'obs_zone' is matched as well.
 
-zone            :: CharParser a Int
+zone            :: Parser Int
 zone            = (    do _ <- char '+'
                           h <- hour
                           m <- minute
@@ -408,29 +427,29 @@ zone            = (    do _ <- char '+'
 -- |A NameAddr is composed of an optional realname a mandatory
 -- e-mail 'address'.
 
-data NameAddr = NameAddr { nameAddr_name :: Maybe String
-                         , nameAddr_addr :: String
+data NameAddr = NameAddr { nameAddr_name :: Maybe ByteString
+                         , nameAddr_addr :: ByteString
                          }
                 deriving (Show,Eq)
 
 -- |Parse a single 'mailbox' or an address 'group' and return the
 -- address(es).
 
-address         :: CharParser a [NameAddr]
+address         :: Parser [NameAddr]
 address         = try (do { r <- mailbox; return [r] }) <|> group
                   <?> "address"
 
 -- |Parse a 'name_addr' or an 'addr_spec' and return the
 -- address.
 
-mailbox         :: CharParser a NameAddr
+mailbox         :: Parser NameAddr
 mailbox         = try name_addr <|> fmap (NameAddr Nothing) addr_spec
                   <?> "mailbox"
 
 -- |Parse an 'angle_addr', optionally prefaced with a 'display_name',
 -- and return the address.
 
-name_addr       :: CharParser a NameAddr
+name_addr       :: Parser NameAddr
 name_addr       = do name <- maybeOption display_name
                      addr <- angle_addr
                      return (NameAddr name addr)
@@ -438,7 +457,7 @@ name_addr       = do name <- maybeOption display_name
 
 -- |Parse an 'angle_addr' or an 'obs_angle_addr' and return the address.
 
-angle_addr      :: CharParser a String
+angle_addr      :: Parser ByteString
 angle_addr      = try (unfold (do _ <- char '<'
                                   r <- addr_spec
                                   _ <- char '>'
@@ -455,7 +474,7 @@ angle_addr      = try (unfold (do _ <- char '<'
 -- >>> parse group "" "my group: user1@example.org, user2@example.org;"
 -- Right [NameAddr {nameAddr_name = Nothing, nameAddr_addr = "user1@example.org"},NameAddr {nameAddr_name = Nothing, nameAddr_addr = "user2@example.org"}]
 
-group           :: CharParser a [NameAddr]
+group           :: Parser [NameAddr]
 group           = do _ <- display_name
                      _ <- char ':'
                      r <- option [] mailbox_list
@@ -465,20 +484,20 @@ group           = do _ <- display_name
 
 -- |Parse and return a 'phrase'.
 
-display_name    :: CharParser a String
-display_name    = fmap unwords phrase
+display_name    :: Parser ByteString
+display_name    = fmap S.unwords phrase
                   <?> "display name"
 
 -- |Parse a list of 'mailbox' addresses, every two addresses being
 -- separated by a comma, and return the list of found address(es).
 
-mailbox_list    :: CharParser a [NameAddr]
+mailbox_list    :: Parser [NameAddr]
 mailbox_list    = sepBy mailbox (char ',') <?> "mailbox list"
 
 -- |Parse a list of 'address' addresses, every two addresses being
 -- separated by a comma, and return the list of found address(es).
 
-address_list    :: CharParser a [NameAddr]
+address_list    :: Parser [NameAddr]
 address_list    = do { r <-sepBy address (char ','); return (concat r) }
                   <?> "address list"
 
@@ -487,56 +506,56 @@ address_list    = do { r <-sepBy address (char ','); return (concat r) }
 
 -- |Parse an \"address specification\". That is a 'local_part', followed
 -- by an \"@\@@\" character, followed by a 'domain'. Return the complete
--- address as 'String', ignoring any whitespace or any comments.
+-- address as 'ByteString', ignoring any whitespace or any comments.
 
-addr_spec       :: CharParser a String
+addr_spec       :: Parser ByteString
 addr_spec       = do r1 <- local_part
                      _ <- char '@'
                      r2 <- domain
-                     return (r1 ++ "@" ++ r2)
+                     return (r1 <> "@" <> r2)
                   <?> "address specification"
 
 -- |Parse and return a \"local part\" of an 'addr_spec'. That is either
 -- a 'dot_atom' or a 'quoted_string'.
 
-local_part      :: CharParser a String
-local_part      = try obs_local_part <|> dot_atom <|> quoted_string
+local_part      :: Parser ByteString
+local_part      = obs_local_part <|> dot_atom <|> quoted_string
                   <?> "address' local part"
 
 -- |Parse and return a \"domain part\" of an 'addr_spec'. That is either
 -- a 'dot_atom' or a 'domain_literal'.
 
-domain          :: CharParser a String
-domain          = try obs_domain <|> dot_atom <|> domain_literal
+domain          :: Parser ByteString
+domain          = obs_domain <|> dot_atom <|> domain_literal
                   <?> "address' domain part"
 
 -- |Parse a \"domain literal\". That is a \"@[@\" character, followed by
 -- any amount of 'dcontent', followed by a terminating \"@]@\"
 -- character. The complete string is returned verbatim.
 
-domain_literal  :: CharParser a String
+domain_literal  :: Parser ByteString
 domain_literal  = unfold (do _ <- char '['
                              r <- many (optional fws >> dcontent)
-                             optional fws
+                             _ <- optional fws
                              _ <- char ']'
-                             return ("[" ++ concat r ++ "]"))
+                             return ("[" <> S.concat r <> "]"))
                   <?> "domain literal"
 
 -- |Parse and return any characters that are legal in a
 -- 'domain_literal'. That is 'dtext' or a 'quoted_pair'.
 
-dcontent        :: CharParser a String
-dcontent        = many1 dtext <|> quoted_pair
+dcontent        :: Parser ByteString
+dcontent        = takeWhile1 isDText <|> quoted_pair
                   <?> "domain literal content"
 
 -- |Parse and return any ASCII characters except \"@[@\", \"@]@\", and
 -- \"@\\@\".
 
-dtext           :: CharParser a Char
-dtext           = no_ws_ctl
-                  <|> satisfy (\c -> ord c `elem` ([33..90] ++ [94..126]))
-                  <?> "any ASCII character (excluding '[', ']', and '\\')"
+dtext           :: Parser Char
+dtext           = satisfy isDText
 
+isDText :: Char -> Bool
+isDText c = isNoWsCtl c || ord c `elem` ([33..90] ++ [94..126])
 
 -- * Overall message syntax (section 3.5)
 
@@ -546,7 +565,7 @@ dtext           = no_ws_ctl
 -- be empty.
 
 data GenericMessage a = Message [Field] a deriving Show
-type Message = GenericMessage String
+type Message = GenericMessage ByteString
 
 -- |Parse a complete message as defined by this RFC and it broken down
 -- into the separate header fields and the message body. Header lines,
@@ -564,15 +583,15 @@ type Message = GenericMessage String
 -- the appropriate parser together yourself. You'll find that this is
 -- rather easy to do. Refer to the 'fields' parser for further details.
 
-message         :: CharParser a Message
+message         :: Parser Message
 message         = do f <- fields
-                     b <- option [] (do _ <- crlf; body)
+                     b <- option "" (do _ <- crlf; body)
                      return (Message f b)
 
 -- |A message body is just an unstructured sequence of characters.
 
-body            :: CharParser a String
-body            = many anyChar
+body            :: Parser ByteString
+body            = takeByteString
 
 
 -- * Field definitions (section 3.6)
@@ -581,20 +600,20 @@ body            = many anyChar
 -- RFC. Each of the various instances contains with the return value
 -- of the corresponding parser.
 
-data Field      = OptionalField       String String
+data Field      = OptionalField       ByteString ByteString
                 | From                [NameAddr]
                 | Sender              NameAddr
-                | ReturnPath          String
+                | ReturnPath          ByteString
                 | ReplyTo             [NameAddr]
                 | To                  [NameAddr]
                 | Cc                  [NameAddr]
                 | Bcc                 [NameAddr]
-                | MessageID           String
-                | InReplyTo           [String]
-                | References          [String]
-                | Subject             String
-                | Comments            String
-                | Keywords            [[String]]
+                | MessageID           ByteString
+                | InReplyTo           [ByteString]
+                | References          [ByteString]
+                | Subject             ByteString
+                | Comments            ByteString
+                | Keywords            [[ByteString]]
                 | Date                CalendarTime
                 | ResentDate          CalendarTime
                 | ResentFrom          [NameAddr]
@@ -602,10 +621,10 @@ data Field      = OptionalField       String String
                 | ResentTo            [NameAddr]
                 | ResentCc            [NameAddr]
                 | ResentBcc           [NameAddr]
-                | ResentMessageID     String
+                | ResentMessageID     ByteString
                 | ResentReplyTo       [NameAddr]
-                | Received            ([(String,String)], CalendarTime)
-                | ObsReceived         [(String,String)]
+                | Received            ([(ByteString,ByteString)], CalendarTime)
+                | ObsReceived         [(ByteString,ByteString)]
                 deriving (Show)
 
 -- |This parser will parse an arbitrary number of header fields as
@@ -620,7 +639,7 @@ data Field      = OptionalField       String String
 -- hardly ever return a syntax error -- what conforms with the idea
 -- that any message that can possibly be accepted /should/ be.
 
-fields          :: CharParser a [Field]
+fields          :: Parser [Field]
 fields          = many (    try (do { r <- from; return (From r) })
                         <|> try (do { r <- sender; return (Sender r) })
                         <|> try (do { r <- return_path; return (ReturnPath r) })
@@ -653,7 +672,7 @@ fields          = many (    try (do { r <- from; return (From r) })
 -- |Parse a \"@Date:@\" header line and return the date it contains a
 -- 'CalendarTime'.
 
-orig_date       :: CharParser a CalendarTime
+orig_date       :: Parser CalendarTime
 orig_date       = header "Date" date_time
 
 
@@ -662,19 +681,19 @@ orig_date       = header "Date" date_time
 -- |Parse a \"@From:@\" header line and return the 'mailbox_list'
 -- address(es) contained in it.
 
-from            :: CharParser a [NameAddr]
+from            :: Parser [NameAddr]
 from            = header "From" mailbox_list
 
 -- |Parse a \"@Sender:@\" header line and return the 'mailbox' address
 -- contained in it.
 
-sender          :: CharParser a NameAddr
+sender          :: Parser NameAddr
 sender          = header "Sender" mailbox
 
 -- |Parse a \"@Reply-To:@\" header line and return the 'address_list'
 -- address(es) contained in it.
 
-reply_to        :: CharParser a [NameAddr]
+reply_to        :: Parser [NameAddr]
 reply_to        = header "Reply-To" address_list
 
 
@@ -683,59 +702,59 @@ reply_to        = header "Reply-To" address_list
 -- |Parse a \"@To:@\" header line and return the 'address_list'
 -- address(es) contained in it.
 
-to              :: CharParser a [NameAddr]
+to              :: Parser [NameAddr]
 to              = header "To" address_list
 
 -- |Parse a \"@Cc:@\" header line and return the 'address_list'
 -- address(es) contained in it.
 
-cc              :: CharParser a [NameAddr]
+cc              :: Parser [NameAddr]
 cc              = header "Cc" address_list
 
 -- |Parse a \"@Bcc:@\" header line and return the 'address_list'
 -- address(es) contained in it.
 
-bcc             :: CharParser a [NameAddr]
-bcc             = header "Bcc" (try address_list <|> do { optional cfws; return [] })
+bcc             :: Parser [NameAddr]
+bcc             = header "Bcc" (address_list <|> cfws *> pure [])
 
 -- ** Identification fields (section 3.6.4)
 
 -- |Parse a \"@Message-Id:@\" header line and return the 'msg_id'
 -- contained in it.
 
-message_id      :: CharParser a String
+message_id      :: Parser ByteString
 message_id      = header "Message-ID" msg_id
 
 -- |Parse a \"@In-Reply-To:@\" header line and return the list of
 -- 'msg_id's contained in it.
 
-in_reply_to     :: CharParser a [String]
+in_reply_to     :: Parser [ByteString]
 in_reply_to     = header "In-Reply-To" (many1 msg_id)
 
 -- |Parse a \"@References:@\" header line and return the list of
 -- 'msg_id's contained in it.
 
-references      :: CharParser a [String]
+references      :: Parser [ByteString]
 references      = header "References" (many1 msg_id)
 
 -- |Parse a \"@message ID:@\" and return it. A message ID is almost
 -- identical to an 'angle_addr', but with stricter rules about folding
 -- and whitespace.
 
-msg_id          :: CharParser a String
+msg_id          :: Parser ByteString
 msg_id          = unfold (do _ <- char '<'
                              idl <- id_left
                              _ <- char '@'
                              idr <- id_right
                              _ <- char '>'
-                             return ("<" ++ idl ++ "@" ++ idr ++ ">"))
+                             return ("<" <> idl <> "@" <> idr <> ">"))
                   <?> "message ID"
 
 -- |Parse a \"left ID\" part of a 'msg_id'. This is almost identical to
 -- the 'local_part' of an e-mail address, but with stricter rules
 -- about folding and whitespace.
 
-id_left         :: CharParser a String
+id_left         :: Parser ByteString
 id_left         = dot_atom_text <|> no_fold_quote
                   <?> "left part of an message ID"
 
@@ -743,7 +762,7 @@ id_left         = dot_atom_text <|> no_fold_quote
 -- the 'domain' of an e-mail address, but with stricter rules about
 -- folding and whitespace.
 
-id_right        :: CharParser a String
+id_right        :: Parser ByteString
 id_right        = dot_atom_text <|> no_fold_literal
                   <?> "right part of an message ID"
 
@@ -751,22 +770,22 @@ id_right        = dot_atom_text <|> no_fold_literal
 -- return the concatenated string. This makes up the 'id_left' of a
 -- 'msg_id'.
 
-no_fold_quote   :: CharParser a String
+no_fold_quote   :: Parser ByteString
 no_fold_quote   = do _ <- dquote
-                     r <- many (many1 qtext <|> quoted_pair)
+                     r <- many (takeWhile1 isQText <|> quoted_pair)
                      _ <- dquote
-                     return ("\"" ++ concat r ++ "\"")
+                     return ("\"" <> S.concat r <> "\"")
                   <?> "non-folding quoted string"
 
 -- |Parse one or more occurences of 'dtext' or 'quoted_pair' and
 -- return the concatenated string. This makes up the 'id_right' of a
 -- 'msg_id'.
 
-no_fold_literal :: CharParser a String
+no_fold_literal :: Parser ByteString
 no_fold_literal = do _ <- char '['
-                     r <- many (many1 dtext <|> quoted_pair)
+                     r <- many (takeWhile1 isDText <|> quoted_pair)
                      _ <- char ']'
-                     return ("[" ++ concat r ++ "]")
+                     return ("[" <> S.concat r <> "]")
                   <?> "non-folding domain literal"
 
 
@@ -776,21 +795,21 @@ no_fold_literal = do _ <- char '['
 -- Please note that all whitespace and/or comments are preserved, i.e.
 -- the result of parsing @\"Subject: foo\"@ is @\" foo\"@, not @\"foo\"@.
 
-subject         :: CharParser a String
+subject         :: Parser ByteString
 subject         = header "Subject" unstructured
 
 -- |Parse a \"@Comments:@\" header line and return its contents verbatim.
 -- Please note that all whitespace and/or comments are preserved, i.e.
 -- the result of parsing @\"Comments: foo\"@ is @\" foo\"@, not @\"foo\"@.
 
-comments        :: CharParser a String
+comments        :: Parser ByteString
 comments        = header "Comments" unstructured
 
 -- |Parse a \"@Keywords:@\" header line and return the list of 'phrase's
 -- found. Please not that each phrase is again a list of 'atom's, as
 -- returned by the 'phrase' parser.
 
-keywords        :: CharParser a [[String]]
+keywords        :: Parser [[ByteString]]
 keywords        = header "Keywords" (do r1 <- phrase
                                         r2 <- many (do _ <- char ','; phrase)
                                         return (r1:r2))
@@ -801,93 +820,90 @@ keywords        = header "Keywords" (do r1 <- phrase
 -- |Parse a \"@Resent-Date:@\" header line and return the date it
 -- contains as 'CalendarTime'.
 
-resent_date     :: CharParser a CalendarTime
+resent_date     :: Parser CalendarTime
 resent_date     = header "Resent-Date" date_time
 
 -- |Parse a \"@Resent-From:@\" header line and return the 'mailbox_list'
 -- address(es) contained in it.
 
-resent_from     :: CharParser a [NameAddr]
+resent_from     :: Parser [NameAddr]
 resent_from     = header "Resent-From" mailbox_list
 
 
 -- |Parse a \"@Resent-Sender:@\" header line and return the 'mailbox_list'
 -- address(es) contained in it.
 
-resent_sender   :: CharParser a NameAddr
+resent_sender   :: Parser NameAddr
 resent_sender   = header "Resent-Sender" mailbox
 
 
 -- |Parse a \"@Resent-To:@\" header line and return the 'mailbox'
 -- address contained in it.
 
-resent_to       :: CharParser a [NameAddr]
+resent_to       :: Parser [NameAddr]
 resent_to       = header "Resent-To" address_list
 
 -- |Parse a \"@Resent-Cc:@\" header line and return the 'address_list'
 -- address(es) contained in it.
 
-resent_cc       :: CharParser a [NameAddr]
+resent_cc       :: Parser [NameAddr]
 resent_cc       = header "Resent-Cc" address_list
 
 -- |Parse a \"@Resent-Bcc:@\" header line and return the 'address_list'
 -- address(es) contained in it. (This list may be empty.)
 
-resent_bcc      :: CharParser a [NameAddr]
-resent_bcc      = header "Resent-Bcc" (    try address_list
-                                       <|> do optional cfws
-                                              return []
-                                      )
+resent_bcc      :: Parser [NameAddr]
+resent_bcc      = header "Resent-Bcc" (address_list <|> (cfws *> pure []))
                   <?> "Resent-Bcc: header line"
 
 -- |Parse a \"@Resent-Message-ID:@\" header line and return the 'msg_id'
 -- contained in it.
 
-resent_msg_id   :: CharParser a String
+resent_msg_id   :: Parser ByteString
 resent_msg_id   = header "Resent-Message-ID" msg_id
 
 
 -- ** Trace fields (section 3.6.7)
 
-return_path     :: CharParser a String
+return_path     :: Parser ByteString
 return_path     = header "Return-Path" path
 
-path            :: CharParser a String
+path            :: Parser ByteString
 path            = unfold ( try (do _ <- char '<'
                                    r <- option "" addr_spec
                                    _ <- char '>'
-                                   return ("<" ++ r ++ ">")
+                                   return ("<" <> r <> ">")
                                )
                           <|> obs_path
                          )
                   <?> "return path spec"
 
-received        :: CharParser a ([(String,String)], CalendarTime)
+received        :: Parser ([(ByteString,ByteString)], CalendarTime)
 received        = header "Received" (do r1 <- name_val_list
                                         _ <- char ';'
                                         r2 <- date_time
                                         return (r1,r2))
 
-name_val_list   :: CharParser a [(String,String)]
-name_val_list   = do optional cfws
-                     many1 name_val_pair
+name_val_list   :: Parser [(ByteString,ByteString)]
+name_val_list   = optional cfws *> many1 name_val_pair
                   <?> "list of name/value pairs"
 
-name_val_pair   :: CharParser a (String,String)
+name_val_pair   :: Parser (ByteString,ByteString)
 name_val_pair   = do r1 <- item_name
                      _ <- cfws
                      r2 <- item_value
                      return (r1,r2)
                   <?> "a name/value pair"
 
-item_name       :: CharParser a String
+item_name       :: Parser ByteString
 item_name       = do r1 <- alpha
-                     r2 <- many $ choice [ char '-', alpha, digit ]
-                     return (r1 : r2)
+                     r2 <- takeWhile
+                             (\c -> c=='-' || isAsciiAlpha c || isDigit c)
+                     return (r1 `S.cons` r2)
                   <?> "name of a name/value pair"
 
-item_value      :: CharParser a String
-item_value      = choice [ try (do { r <- many1 angle_addr; return (concat r) })
+item_value      :: Parser ByteString
+item_value      = choice [ try (do { r <- many1 angle_addr; return (S.concat r) })
                          , try addr_spec
                          , try domain
                          , msg_id
@@ -901,9 +917,10 @@ item_value      = choice [ try (do { r <- many1 angle_addr; return (concat r) })
 -- 'field_name' and 'unstructured' text of the header. The name will
 -- /not/ contain the terminating colon.
 
-optional_field  :: CharParser a (String,String)
+optional_field  :: Parser (ByteString,ByteString)
 optional_field  = do n <- field_name
                      _ <- char ':'
+                     skipSpace
                      b <- unstructured
                      _ <- crlf
                      return (n,b)
@@ -912,16 +929,18 @@ optional_field  = do n <- field_name
 -- |Parse and return an arbitrary header field name. That is one or
 -- more 'ftext' characters.
 
-field_name      :: CharParser a String
-field_name      = many1 ftext <?> "header line name"
+field_name      :: Parser ByteString
+field_name      = takeWhile1 isFText <?> "header line name"
 
 -- |Match and return any ASCII character except for control
 -- characters, whitespace, and \"@:@\".
 
-ftext           :: CharParser a Char
-ftext           = satisfy (\c -> ord c `elem` ([33..57] ++ [59..126]))
+ftext           :: Parser Char
+ftext           = satisfy isFText
                   <?> "character (excluding controls, space, and ':')"
 
+isFText :: Char -> Bool
+isFText c = ord c `elem` ([33..57] ++ [59..126])
 
 -- * Miscellaneous obsolete tokens (section 4.1)
 
@@ -930,10 +949,10 @@ ftext           = satisfy (\c -> ord c `elem` ([33..57] ++ [59..126]))
 -- quoted. The parser will return both, the backslash and the actual
 -- character.
 
-obs_qp          :: CharParser a String
+obs_qp          :: Parser ByteString
 obs_qp          = do _ <- char '\\'
                      c <- satisfy (\c -> ord c `elem` [0..127])
-                     return ['\\',c]
+                     return (S.pack ['\\',c])
                   <?> "any quoted US-ASCII character"
 
 -- |Match the obsolete \"text\" syntax, which - unlike 'text' - allowed
@@ -941,48 +960,50 @@ obs_qp          = do _ <- char '\\'
 -- better consult the RFC for details. The parser will return the
 -- complete string, including those special characters.
 
-obs_text        :: CharParser a String
-obs_text        = do r1 <- many lf
-                     r2 <- many cr
+obs_text        :: Parser ByteString
+obs_text        = do let lfs = takeWhile (=='\n')
+                         crs = takeWhile (=='\r')
+                     r1 <- lfs
+                     r2 <- crs
                      r3 <- many (do r4 <- obs_char
-                                    r5 <- many lf
-                                    r6 <- many cr
-                                    return (r4 : (r5 ++ r6)))
-                     return (r1 ++ r2 ++ concat r3)
+                                    r5 <- lfs
+                                    r6 <- crs
+                                    return (r4 `S.cons` (r5 <> r6)))
+                     return (r1 <> r2 <> S.concat r3)
 
 -- |Match and return the obsolete \"char\" syntax, which - unlike
 -- 'character' - did not allow \"carriage return\" and \"linefeed\".
 
-obs_char        :: CharParser a Char
+obs_char        :: Parser Char
 obs_char        = satisfy (\c -> ord c `elem` ([0..9] ++ [11,12] ++ [14..127]))
                   <?> "any ASCII character except CR and LF"
 
 -- |Match and return the obsolete \"utext\" syntax, which is identical
 -- to 'obs_text'.
 
-obs_utext       :: CharParser a String
+obs_utext       :: Parser ByteString
 obs_utext       = obs_text
 
 -- |Match the obsolete \"phrase\" syntax, which - unlike 'phrase' -
 -- allows dots between tokens.
 
-obs_phrase      :: CharParser a [String]
+obs_phrase      :: Parser [ByteString]
 obs_phrase      = do r1 <- word
                      r2 <- many $ choice [ word
                                          , string "."
-                                         , do { _ <- cfws; return [] }
+                                         , do { _ <- cfws; return "" }
                                          ]
-                     return (r1 : filter (/=[]) r2)
+                     return (r1 : filter (not . S.null) r2)
 
 -- |Match a  \"phrase list\" syntax and return the list of 'String's
 -- that make up the phrase. In contrast to a 'phrase', the
 -- 'obs_phrase_list' separates the individual words by commas. This
 -- syntax is - as you will have guessed - obsolete.
 
-obs_phrase_list :: CharParser a [String]
+obs_phrase_list :: Parser [ByteString]
 obs_phrase_list = do r1 <- many1 (do r <- option [] phrase
                                      _ <- unfold $ char ','
-                                     return (filter (/=[]) r))
+                                     return (filter (not . S.null) r))
                      r2 <- option [] phrase
                      return (concat r1 ++ r2)
                   <|> phrase
@@ -994,27 +1015,26 @@ obs_phrase_list = do r1 <- many1 (do r <- option [] phrase
 -- 'wsp' character, followed by an arbitrary number (including zero)
 -- of 'crlf' followed by at least one more 'wsp' character.
 
-obs_fws         :: CharParser a String
-obs_fws         = do r1 <- many1 wsp
+obs_fws         :: Parser ByteString
+obs_fws         = do r1 <- takeWhile1 isHorizontalSpace
                      r2 <- many (do r3 <- crlf
-                                    r4 <- many1 wsp
-                                    return (r3 ++ r4))
-                     return (r1 ++ concat r2)
+                                    r4 <- takeWhile1 isHorizontalSpace
+                                    return (r3 <> r4))
+                     return (r1 <> S.concat r2)
 
 
 -- * Obsolete Date and Time (section 4.3)
 
 -- |Parse a 'day_name' but allow for the obsolete folding syntax.
 
-obs_day_of_week :: CharParser a Day
+obs_day_of_week :: Parser Day
 obs_day_of_week = unfold day_name <?> "day-of-the-week name"
 
 -- |Parse a 'year' but allow for a two-digit number (obsolete) and the
 -- obsolete folding syntax.
 
-obs_year        :: CharParser a Int
-obs_year        = unfold (do r <- manyN 2 digit
-                             return (normalize (read r :: Int)))
+obs_year        :: Parser Int
+obs_year        = unfold (normalize <$> readIntN 2)
                   <?> "year"
     where
     normalize n
@@ -1024,32 +1044,32 @@ obs_year        = unfold (do r <- manyN 2 digit
 
 -- |Parse a 'month_name' but allow for the obsolete folding syntax.
 
-obs_month       :: CharParser a Month
+obs_month       :: Parser Month
 obs_month       = between cfws cfws month_name <?> "month name"
 
 -- |Parse a 'day' but allow for the obsolete folding syntax.
 
-obs_day         :: CharParser a Int
+obs_day         :: Parser Int
 obs_day         = unfold day_of_month <?> "day"
 
 -- |Parse a 'hour' but allow for the obsolete folding syntax.
 
-obs_hour        :: CharParser a Int
+obs_hour        :: Parser Int
 obs_hour        = unfold hour <?> "hour"
 
 -- |Parse a 'minute' but allow for the obsolete folding syntax.
 
-obs_minute      :: CharParser a Int
+obs_minute      :: Parser Int
 obs_minute      = unfold minute <?> "minute"
 
 -- |Parse a 'second' but allow for the obsolete folding syntax.
 
-obs_second      :: CharParser a Int
+obs_second      :: Parser Int
 obs_second      = unfold second <?> "second"
 
 -- |Match the obsolete zone names and return the appropriate offset.
 
-obs_zone        :: CharParser a Int
+obs_zone        :: Parser Int
 obs_zone        = choice [ mkZone "UT"  0
                          , mkZone "GMT" 0
                          , mkZone "EST" (-5)
@@ -1079,12 +1099,12 @@ obs_zone        = choice [ mkZone "UT"  0
 -- >>> parse obs_angle_addr "" "<@example1.org,@example2.org:joe@example.org>"
 -- Right "<joe@example.org>"
 
-obs_angle_addr  :: CharParser a String
+obs_angle_addr  :: Parser ByteString
 obs_angle_addr  = unfold (do _ <- char '<'
                              _ <- option [] obs_route
                              addr <- addr_spec
                              _ <- char '>'
-                             return ("<" ++ addr ++ ">") -- TODO: route is lost here.
+                             return ("<" <> addr <> ">") -- TODO: route is lost here.
                          )
                   <?> "obsolete angle address"
 
@@ -1092,7 +1112,7 @@ obs_angle_addr  = unfold (do _ <- char '<'
 -- returns the list of 'String's that make up this route. Relies on
 -- 'obs_domain_list' for the actual parsing.
 
-obs_route       :: CharParser a [String]
+obs_route       :: Parser [ByteString]
 obs_route       = unfold (do { r <- obs_domain_list; _ <- char ':'; return r })
                   <?> "route of an obsolete angle address"
 
@@ -1100,13 +1120,14 @@ obs_route       = unfold (do { r <- obs_domain_list; _ <- char ':'; return r })
 -- with an \"at\". Multiple names are separated by a comma. The list of
 -- 'domain's is returned - and may be empty.
 
-obs_domain_list :: CharParser a [String]
+obs_domain_list :: Parser [ByteString]
 obs_domain_list = do _ <- char '@'
                      r1 <- domain
-                     r2 <- many (do _ <- cfws <|> string ","
-                                    optional cfws
-                                    _ <- char '@'
-                                    domain)
+                     r2 <- many (   (cfws <|> string ",")
+                                 *> optional cfws
+                                 *> "@"
+                                 *> domain
+                                )
                      return (r1 : r2)
                     <?> "route of an obsolete angle address"
 
@@ -1114,24 +1135,24 @@ obs_domain_list = do _ <- char '@'
 -- more liberal insertion of folding whitespace and comments. The
 -- actual string is returned.
 
-obs_local_part  :: CharParser a String
+obs_local_part  :: Parser ByteString
 obs_local_part  = do r1 <- word
                      r2 <- many (do _ <- string "."
                                     r <- word
-                                    return ('.' : r))
-                     return (r1 ++ concat r2)
+                                    return ('.' `S.cons` r))
+                     return (r1 <> S.concat r2)
                   <?> "local part of an address"
 
 -- |Parse the obsolete syntax of a 'domain', which allowed for more
 -- liberal insertion of folding whitespace and comments. The actual
 -- string is returned.
 
-obs_domain      :: CharParser a String
+obs_domain      :: Parser ByteString
 obs_domain      = do r1 <- atom
                      r2 <- many (do _ <- string "."
                                     r <- atom
-                                    return ('.' : r))
-                     return (r1 ++ concat r2)
+                                    return ('.' `S.cons` r))
+                     return (r1 <> S.concat r2)
                   <?> "domain part of an address"
 
 -- |This parser will match the obsolete syntax for a 'mailbox_list'.
@@ -1152,7 +1173,7 @@ obs_domain      = do r1 <- atom
 -- unexpected end of input
 -- expecting obsolete syntax for a list of mailboxes
 
-obs_mbox_list   :: CharParser a [NameAddr]
+obs_mbox_list   :: Parser [NameAddr]
 obs_mbox_list   = do r1 <- many1 (try (do r <- maybeOption mailbox
                                           _ <- unfold $ char ','
                                           return r))
@@ -1166,12 +1187,12 @@ obs_mbox_list   = do r1 <- many1 (try (do r <- maybeOption mailbox
 -- parser will return a simple list of addresses; the grouping
 -- information is lost.
 
-obs_addr_list   :: CharParser a [NameAddr]
-obs_addr_list   = do r1 <- many1 (try (do r <- maybeOption address
-                                          optional cfws
-                                          _ <- char ','
-                                          optional cfws
-                                          return r))
+obs_addr_list   :: Parser [NameAddr]
+obs_addr_list   = do r1 <- many1 (   maybeOption address
+                                  <* optional cfws
+                                  <* ","
+                                  <* optional cfws
+                                 )
                      r2 <- maybeOption address
                      return (concat (catMaybes (r1 ++ [r2])))
                   <?> "obsolete syntax for a list of addresses"
@@ -1179,7 +1200,7 @@ obs_addr_list   = do r1 <- many1 (try (do r <- maybeOption address
 
 -- * Obsolete header fields (section 4.5)
 
-obs_fields      :: GenParser Char a [Field]
+obs_fields      :: Parser [Field]
 obs_fields      = many (    try (do { r <- obs_from; return (From r) })
                         <|> try (do { r <- obs_sender; return (Sender r) })
                         <|> try (do { r <- obs_return; return (ReturnPath r) })
@@ -1213,7 +1234,7 @@ obs_fields      = many (    try (do { r <- obs_from; return (From r) })
 -- |Parse a 'date' header line but allow for the obsolete
 -- folding syntax.
 
-obs_orig_date   :: CharParser a CalendarTime
+obs_orig_date   :: Parser CalendarTime
 obs_orig_date   = obs_header "Date" date_time
 
 
@@ -1222,19 +1243,19 @@ obs_orig_date   = obs_header "Date" date_time
 -- |Parse a 'from' header line but allow for the obsolete
 -- folding syntax.
 
-obs_from        :: CharParser a [NameAddr]
+obs_from        :: Parser [NameAddr]
 obs_from        = obs_header "From" mailbox_list
 
 -- |Parse a 'sender' header line but allow for the obsolete
 -- folding syntax.
 
-obs_sender      :: CharParser a NameAddr
+obs_sender      :: Parser NameAddr
 obs_sender      = obs_header "Sender" mailbox
 
 -- |Parse a 'reply_to' header line but allow for the obsolete
 -- folding syntax.
 
-obs_reply_to    :: CharParser a [NameAddr]
+obs_reply_to    :: Parser [NameAddr]
 obs_reply_to    = obs_header "Reply-To" mailbox_list
 
 
@@ -1243,22 +1264,20 @@ obs_reply_to    = obs_header "Reply-To" mailbox_list
 -- |Parse a 'to' header line but allow for the obsolete
 -- folding syntax.
 
-obs_to          :: CharParser a [NameAddr]
+obs_to          :: Parser [NameAddr]
 obs_to          = obs_header "To" address_list
 
 -- |Parse a 'cc' header line but allow for the obsolete
 -- folding syntax.
 
-obs_cc          :: CharParser a [NameAddr]
+obs_cc          :: Parser [NameAddr]
 obs_cc          = obs_header "Cc" address_list
 
 -- |Parse a 'bcc' header line but allow for the obsolete
 -- folding syntax.
 
-obs_bcc         :: CharParser a [NameAddr]
-obs_bcc         = header "Bcc" (    try address_list
-                                    <|> do { optional cfws; return [] }
-                               )
+obs_bcc         :: Parser [NameAddr]
+obs_bcc         = header "Bcc" (address_list <|> (optional cfws *> pure []))
 
 
 -- ** Obsolete identification fields (section 4.5.4)
@@ -1266,37 +1285,37 @@ obs_bcc         = header "Bcc" (    try address_list
 -- |Parse a 'message_id' header line but allow for the obsolete
 -- folding syntax.
 
-obs_message_id  :: CharParser a String
+obs_message_id  :: Parser ByteString
 obs_message_id  = obs_header "Message-ID" msg_id
 
 -- |Parse an 'in_reply_to' header line but allow for the obsolete
 -- folding and the obsolete phrase syntax.
 
-obs_in_reply_to :: CharParser a [String]
-obs_in_reply_to = obs_header "In-Reply-To" (do r <- many (    do {_ <- phrase; return [] }
-                                                          <|> msg_id
-                                                         )
-                                               return (filter (/=[]) r))
+obs_in_reply_to :: Parser [ByteString]
+obs_in_reply_to
+  = obs_header "In-Reply-To" (do r <- many (do {_ <- phrase; return "" }
+                                            <|> msg_id)
+                                 return (filter (not . S.null) r))
 
 -- |Parse a 'references' header line but allow for the obsolete
 -- folding and the obsolete phrase syntax.
 
-obs_references  :: CharParser a [String]
-obs_references  = obs_header "References" (do r <- many (    do { _ <- phrase; return [] }
-                                                         <|> msg_id
-                                                        )
-                                              return (filter (/=[]) r))
+obs_references  :: Parser [ByteString]
+obs_references
+  = obs_header "References" (do r <- many (do { _ <- phrase; return "" }
+                                           <|> msg_id)
+                                return (filter (not . S.null) r))
 
 -- |Parses the \"left part\" of a message ID, but allows the obsolete
 -- syntax, which is identical to a 'local_part'.
 
-obs_id_left     :: CharParser a String
+obs_id_left     :: Parser ByteString
 obs_id_left     = local_part <?> "left part of an message ID"
 
 -- |Parses the \"right part\" of a message ID, but allows the obsolete
 -- syntax, which is identical to a 'domain'.
 
-obs_id_right    :: CharParser a String
+obs_id_right    :: Parser ByteString
 obs_id_right    = domain <?> "right part of an message ID"
 
 
@@ -1306,19 +1325,19 @@ obs_id_right    = domain <?> "right part of an message ID"
 -- |Parse a 'subject' header line but allow for the obsolete
 -- folding syntax.
 
-obs_subject     :: CharParser a String
+obs_subject     :: Parser ByteString
 obs_subject     = obs_header "Subject" unstructured
 
 -- |Parse a 'comments' header line but allow for the obsolete
 -- folding syntax.
 
-obs_comments    :: CharParser a String
+obs_comments    :: Parser ByteString
 obs_comments    = obs_header "Comments" unstructured
 
 -- |Parse a 'keywords' header line but allow for the obsolete
 -- folding syntax. Also, this parser accepts 'obs_phrase_list'.
 
-obs_keywords    :: CharParser a [String]
+obs_keywords    :: Parser [ByteString]
 obs_keywords    = obs_header "Keywords" obs_phrase_list
 
 
@@ -1327,75 +1346,74 @@ obs_keywords    = obs_header "Keywords" obs_phrase_list
 -- |Parse a 'resent_from' header line but allow for the obsolete
 -- folding syntax.
 
-obs_resent_from :: CharParser a [NameAddr]
+obs_resent_from :: Parser [NameAddr]
 obs_resent_from = obs_header "Resent-From" mailbox_list
 
 -- |Parse a 'resent_sender' header line but allow for the obsolete
 -- folding syntax.
 
-obs_resent_send :: CharParser a NameAddr
+obs_resent_send :: Parser NameAddr
 obs_resent_send = obs_header "Resent-Sender" mailbox
 
 -- |Parse a 'resent_date' header line but allow for the obsolete
 -- folding syntax.
 
-obs_resent_date :: CharParser a CalendarTime
+obs_resent_date :: Parser CalendarTime
 obs_resent_date = obs_header "Resent-Date" date_time
 
 -- |Parse a 'resent_to' header line but allow for the obsolete
 -- folding syntax.
 
-obs_resent_to   :: CharParser a [NameAddr]
+obs_resent_to   :: Parser [NameAddr]
 obs_resent_to   = obs_header "Resent-To" mailbox_list
 
 -- |Parse a 'resent_cc' header line but allow for the obsolete
 -- folding syntax.
 
-obs_resent_cc   :: CharParser a [NameAddr]
+obs_resent_cc   :: Parser [NameAddr]
 obs_resent_cc   = obs_header "Resent-Cc" mailbox_list
 
 -- |Parse a 'resent_bcc' header line but allow for the obsolete
 -- folding syntax.
 
-obs_resent_bcc  :: CharParser a [NameAddr]
-obs_resent_bcc  = obs_header "Bcc" (    try address_list
-                                    <|> do { optional cfws; return [] }
-                                   )
+obs_resent_bcc  :: Parser [NameAddr]
+obs_resent_bcc  = obs_header "Bcc" (address_list <|> (cfws *> pure []))
 
 -- |Parse a 'resent_msg_id' header line but allow for the obsolete
 -- folding syntax.
 
-obs_resent_mid  :: CharParser a String
+obs_resent_mid  :: Parser ByteString
 obs_resent_mid  = obs_header "Resent-Message-ID" msg_id
 
 -- |Parse a @Resent-Reply-To@ header line but allow for the
 -- obsolete folding syntax.
 
-obs_resent_reply :: CharParser a [NameAddr]
+obs_resent_reply :: Parser [NameAddr]
 obs_resent_reply = obs_header "Resent-Reply-To" address_list
 
 
 -- ** Obsolete trace fields (section 4.5.7)
 
-obs_return      :: CharParser a String
+obs_return      :: Parser ByteString
 obs_return       = obs_header "Return-Path" path
 
-obs_received    :: CharParser a [(String, String)]
+obs_received    :: Parser [(ByteString, ByteString)]
 obs_received     = obs_header "Received" name_val_list
 
 -- |Match 'obs_angle_addr'.
 
-obs_path        :: CharParser a String
+obs_path        :: Parser ByteString
 obs_path        = obs_angle_addr
 
 -- |This parser is identical to 'optional_field' but allows the more
 -- liberal line-folding syntax between the \"field_name\" and the \"field
 -- text\".
 
-obs_optional    :: CharParser a (String,String)
+obs_optional    :: Parser (ByteString,ByteString)
 obs_optional    = do n <- field_name
                      _ <- many wsp
                      _ <- char ':'
+                     skipSpace
                      b <- unstructured
                      _ <- crlf
                      return (n,b)

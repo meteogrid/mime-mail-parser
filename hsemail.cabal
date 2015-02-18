@@ -23,16 +23,16 @@ Source-Repository head
   Location:             git://github.com/peti/hsemail.git
 
 Library
-  Build-Depends:        base >= 3 && < 5, mtl, parsec, old-time
-  Exposed-Modules:      Text.ParserCombinators.AttoParsec.Rfc2234
-                        Text.ParserCombinators.AttoParsec.Rfc2821
-                        Text.ParserCombinators.AttoParsec.Rfc2822
+  Build-Depends:        base >= 3 && < 5, mtl, attoparsec, old-time, bytestring
+  Exposed-Modules:      Text.ParserCombinators.Attoparsec.Rfc2234
+                        Text.ParserCombinators.Attoparsec.Rfc2822
+  Other-Modules:        Text.ParserCombinators.Attoparsec.ParsecCompat
   Ghc-Options:          -Wall
 
 Test-Suite test-hsemail
   type:                 exitcode-stdio-1.0
   main-is:              self-test.hs
-  build-depends:        base, hspec, parsec, old-time
+  build-depends:        base, hspec, attoparsec, old-time, bytestring
 
 Test-Suite doctest-hsemail
   type:                 exitcode-stdio-1.0
