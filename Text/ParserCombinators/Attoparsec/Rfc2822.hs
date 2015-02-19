@@ -562,8 +562,7 @@ isDText c = isNoWsCtl c || ord c `elem` ([33..90] ++ [94..126])
 -- represented in the 'Field' data type, and a message body, which may
 -- be empty.
 
-data GenericMessage a = Message [Field] a deriving Show
-type Message = GenericMessage ByteString
+data Message = Message [Field] ByteString deriving Show
 
 -- |Parse a complete message as defined by this RFC and it broken down
 -- into the separate header fields and the message body. Header lines,
@@ -637,6 +636,7 @@ data Field      = OptionalField       ByteString ByteString
 -- hardly ever return a syntax error -- what conforms with the idea
 -- that any message that can possibly be accepted /should/ be.
 
+fields :: Parser [Field]
 fields
   = many
     (   From                  <$> from

@@ -16,7 +16,7 @@ module Main ( main ) where
 import Test.Hspec
 import System.Time ( CalendarTime(..), Month(..), Day(..) )
 import Control.Applicative ((<*))
-import Data.Attoparsec.Char8 (Parser, parseOnly, endOfInput)
+import Data.Attoparsec.ByteString.Char8 (Parser, parseOnly, endOfInput)
 import Data.ByteString.Char8
 import Text.ParserCombinators.Attoparsec.Rfc2822
 
