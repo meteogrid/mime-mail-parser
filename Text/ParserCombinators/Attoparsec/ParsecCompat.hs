@@ -16,11 +16,11 @@ module Text.ParserCombinators.Attoparsec.ParsecCompat (
   , optional
   , oneOf
   , isHorizontalSpace
-  , isEndOfLine
-  , module Data.Attoparsec.ByteString.Char8
+  , module Data.Attoparsec.Char8
 ) where
 
-import Data.Attoparsec.ByteString.Char8 hiding (isHorizontalSpace, isEndOfLine)
+import Data.Attoparsec.Char8 hiding (isHorizontalSpace)
+import Data.ByteString.Char8 (ByteString)
 import Control.Applicative ((*>), (<*), (<|>))
 
 noneOf :: String -> Parser Char
@@ -37,6 +37,3 @@ oneOf = satisfy . inClass
 
 isHorizontalSpace :: Char -> Bool
 isHorizontalSpace c = c==' ' || c=='\t'
-
-isEndOfLine :: Char -> Bool
-isEndOfLine c = c=='\r' || c=='\n'

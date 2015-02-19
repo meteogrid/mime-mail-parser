@@ -26,6 +26,32 @@ import Control.Monad ( liftM2 )
 import Text.ParserCombinators.Attoparsec.ParsecCompat
 
 ----------------------------------------------------------------------
+-- * Parser Combinators
+----------------------------------------------------------------------
+
+-- |Case-insensitive variant of Attoparsec's 'string' function.
+caseString :: ByteString -> Parser ByteString
+caseString = stringCI
+
+-- |Match a parser at least @n@ times.
+
+manyN           :: Int -> Parser c -> Parser [c]
+manyN n p
+    | n <= 0     = return []
+    | otherwise  = liftM2 (++) (count n p) (many p)
+
+-- |Match a parser at least @n@ times, but no more than @m@ times.
+
+manyNtoM        :: Int -> Int -> Parser c -> Parser [c]
+manyNtoM n m p
+    | n < 0      = return []
+    | n > m      = return []
+    | n == m     = count n p
+    | n == 0     = foldr (<|>) (return []) (map (\x -> try $ count x p) (reverse [1..m]))
+    | otherwise  = liftM2 (++) (count n p) (manyNtoM 0 (m-n) p)
+
+
+----------------------------------------------------------------------
 -- * Primitive Parsers
 ----------------------------------------------------------------------
 
