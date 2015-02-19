@@ -24,7 +24,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
 import Text.ParserCombinators.Attoparsec.Rfc2234 hiding (quoted_pair, quoted_string)
 import Text.ParserCombinators.Attoparsec.ParsecCompat
-import Prelude hiding (take, takeWhile)
+import Prelude hiding (takeWhile)
 
 -- * Useful parser combinators
 
@@ -44,14 +44,14 @@ unfold           = between (optional cfws) (optional cfws)
 -- header's name and a parser for the body.
 
 header          :: ByteString -> Parser b -> Parser b
-header n p       = let nameString = caseString (n <> ":") <* space
+header n p       = let nameString = stringCI (n <> ":") <* space
                    in
                    between nameString crlf p <?> (S.unpack n ++ " header line")
 
 -- |Like 'header', but allows the obsolete white-space rules.
 
 obs_header      :: ByteString -> Parser b -> Parser b
-obs_header n p   = let nameString = caseString n >> many wsp >> char ':'
+obs_header n p   = let nameString = stringCI n >> many wsp >> char ':'
                    in between nameString crlf p <?>
                        ("obsolete " ++ S.unpack n ++ " header line")
 
@@ -294,13 +294,13 @@ day_of_week     =     try (between (optional fws) (optional fws) day_name <?> "n
 -- and return the appropriate 'Day' value.
 
 day_name        :: Parser Day
-day_name        =     (caseString "Mon" *> pure Monday)
-                  <|> (caseString "Tue" *> pure Tuesday)
-                  <|> (caseString "Wed" *> pure Wednesday)
-                  <|> (caseString "Thu" *> pure Thursday)
-                  <|> (caseString "Fri" *> pure Friday)
-                  <|> (caseString "Sat" *> pure Saturday)
-                  <|> (caseString "Sun" *> pure Sunday)
+day_name        =     (stringCI "Mon" *> pure Monday)
+                  <|> (stringCI "Tue" *> pure Tuesday)
+                  <|> (stringCI "Wed" *> pure Wednesday)
+                  <|> (stringCI "Thu" *> pure Thursday)
+                  <|> (stringCI "Fri" *> pure Friday)
+                  <|> (stringCI "Sat" *> pure Saturday)
+                  <|> (stringCI "Sun" *> pure Sunday)
                   <?> "name of a day-of-the-week"
 
 -- |This parser will match a date of the form \"@dd:mm:yyyy@\" and return
@@ -320,13 +320,6 @@ date            = do d <- day
 year            :: Parser Int
 year            = readIntN 4 <?> "year"
 
--- |This parser will match a N digit number and return its integer value
-readIntN :: Int -> Parser Int
-readIntN n = do y <- take n
-                case S.readInt y of
-                  Just (r,"") -> return r
-                  _           -> fail "readIntN"
-
 -- |This parser will match a 'month_name', optionally wrapped in
 -- folding whitespace, or an 'obs_month' and return its 'Month'
 -- value.
@@ -340,18 +333,18 @@ month           =     try (between (optional fws) (optional fws) month_name <?> 
 -- and return the appropriate 'Month' value.
 
 month_name      :: Parser Month
-month_name      =     (caseString "Jan" *> pure January)
-                  <|> (caseString "Feb" *> pure February)
-                  <|> (caseString "Mar" *> pure March)
-                  <|> (caseString "Apr" *> pure April)
-                  <|> (caseString "May" *> pure May)
-                  <|> (caseString "Jun" *> pure June)
-                  <|> (caseString "Jul" *> pure July)
-                  <|> (caseString "Aug" *> pure August)
-                  <|> (caseString "Sep" *> pure September)
-                  <|> (caseString "Oct" *> pure October)
-                  <|> (caseString "Nov" *> pure November)
-                  <|> (caseString "Dec" *> pure December)
+month_name      =     (stringCI "Jan" *> pure January)
+                  <|> (stringCI "Feb" *> pure February)
+                  <|> (stringCI "Mar" *> pure March)
+                  <|> (stringCI "Apr" *> pure April)
+                  <|> (stringCI "May" *> pure May)
+                  <|> (stringCI "Jun" *> pure June)
+                  <|> (stringCI "Jul" *> pure July)
+                  <|> (stringCI "Aug" *> pure August)
+                  <|> (stringCI "Sep" *> pure September)
+                  <|> (stringCI "Oct" *> pure October)
+                  <|> (stringCI "Nov" *> pure November)
+                  <|> (stringCI "Dec" *> pure December)
                   <?> "month name"
 
 -- Internal helper function: match a 1 or 2-digit number (day of month).

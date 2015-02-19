@@ -25,6 +25,7 @@ Source-Repository head
 Library
   Build-Depends:        base >= 3 && < 5, mtl, attoparsec, old-time, bytestring
   Exposed-Modules:      Text.ParserCombinators.Attoparsec.Rfc2234
+                        Text.ParserCombinators.Attoparsec.Rfc2821
                         Text.ParserCombinators.Attoparsec.Rfc2822
   Other-Modules:        Text.ParserCombinators.Attoparsec.ParsecCompat
   Ghc-Options:          -Wall
