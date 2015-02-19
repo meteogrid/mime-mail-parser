@@ -644,32 +644,32 @@ data Field      = OptionalField       ByteString ByteString
 -- hardly ever return a syntax error -- what conforms with the idea
 -- that any message that can possibly be accepted /should/ be.
 
-fields          :: Parser [Field]
-fields          = many (    try (do { r <- from; return (From r) })
-                        <|> try (do { r <- sender; return (Sender r) })
-                        <|> try (do { r <- return_path; return (ReturnPath r) })
-                        <|> try (do { r <- reply_to; return (ReplyTo r) })
-                        <|> try (do { r <- to; return (To r) })
-                        <|> try (do { r <- cc; return (Cc r) })
-                        <|> try (do { r <- bcc; return (Bcc r) })
-                        <|> try (do { r <- message_id; return (MessageID r) })
-                        <|> try (do { r <- in_reply_to; return (InReplyTo r) })
-                        <|> try (do { r <- references; return (References r) })
-                        <|> try (do { r <- subject; return (Subject r) })
-                        <|> try (do { r <- comments; return (Comments r) })
-                        <|> try (do { r <- keywords; return (Keywords r) })
-                        <|> try (do { r <- orig_date; return (Date r) })
-                        <|> try (do { r <- resent_date; return (ResentDate r) })
-                        <|> try (do { r <- resent_from; return (ResentFrom r) })
-                        <|> try (do { r <- resent_sender; return (ResentSender r) })
-                        <|> try (do { r <- resent_to; return (ResentTo r) })
-                        <|> try (do { r <- resent_cc; return (ResentCc r) })
-                        <|> try (do { r <- resent_bcc; return (ResentBcc r) })
-                        <|> try (do { r <- resent_msg_id; return (ResentMessageID r) })
-                        <|> try (do { r <- received; return (Received r) })
-                         -- catch all
-                        <|> (do { (name,cont) <- optional_field; return (OptionalField name cont) })
-                       )
+fields
+  = many
+    (   From                  <$> from
+    <|> Sender                <$> sender
+    <|> ReturnPath            <$> return_path
+    <|> ReplyTo               <$> reply_to
+    <|> To                    <$> to
+    <|> Cc                    <$> cc
+    <|> Bcc                   <$> bcc
+    <|> MessageID             <$> message_id
+    <|> InReplyTo             <$> in_reply_to
+    <|> References            <$> references
+    <|> Subject               <$> subject
+    <|> Comments              <$> comments
+    <|> Keywords              <$> keywords
+    <|> Date                  <$> orig_date
+    <|> ResentDate            <$> resent_date
+    <|> ResentFrom            <$> resent_from
+    <|> ResentSender          <$> resent_sender
+    <|> ResentTo              <$> resent_to
+    <|> ResentCc              <$> resent_cc
+    <|> ResentBcc             <$> resent_bcc
+    <|> ResentMessageID       <$> resent_msg_id
+    <|> Received              <$> received
+    <|> uncurry OptionalField <$> optional_field
+    )
 
 
 -- ** The origination date field (section 3.6.1)

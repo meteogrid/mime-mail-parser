@@ -16,11 +16,10 @@ module Text.ParserCombinators.Attoparsec.ParsecCompat (
   , optional
   , oneOf
   , isHorizontalSpace
-  , module Data.Attoparsec.Char8
+  , module Data.Attoparsec.ByteString.Char8
 ) where
 
-import Data.Attoparsec.Char8 hiding (isHorizontalSpace)
-import Data.ByteString.Char8 (ByteString)
+import Data.Attoparsec.ByteString.Char8 hiding (isHorizontalSpace)
 import Control.Applicative ((*>), (<*), (<|>))
 
 noneOf :: String -> Parser Char
