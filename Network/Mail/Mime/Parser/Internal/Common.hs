@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {- |
-   Module      :  Text.ParserCombinators.Attoparsec.ParsecCompat
+   Module      :  Network.Mail.Mime.Parser.Internal.Common
    Copyright   :  (c) 2015 Alberto Valverde
    License     :  BSD3
 
@@ -10,7 +10,7 @@
 
    This module provides a compatibility layer with attoparsec
  -}
-module Text.ParserCombinators.Attoparsec.ParsecCompat (
+module Network.Mail.Mime.Parser.Internal.Common (
     noneOf
   , between
   , optional

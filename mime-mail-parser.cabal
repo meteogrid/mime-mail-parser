@@ -1,0 +1,45 @@
+Name:                   mime-mail-parser
+Version:                1.0.0
+Copyright:              (c) 2013-2015 Peter Simons
+License:                BSD3
+License-File:           LICENSE
+Author:                 Peter Simons <simons@cryp.to>, Gero Kriependorf <gero-dev@physra.net>, Marty Pauley <marty@kasei.com>, Alberto Valverde <alberto@toscat.net>
+Maintainer:             Alberto Valverde <alberto@toscat.net>
+Homepage:               http://github.com/meteogrid/mime-mail-parser
+Category:               Email
+Synopsis:               Internet Message Parsers
+Description:            Parsers for the syntax defined in RFC2822
+Cabal-Version:          >= 1.8
+Build-Type:             Simple
+Tested-With:            GHC == 7.8.3
+
+
+Source-Repository head
+  Type:                 git
+  Location:             git://github.com/meteogrid/mime-mail-parser.git
+
+Library
+  Build-Depends:        base >= 3 && < 5
+                      , mtl
+                      , attoparsec
+                      , old-time
+                      , bytestring
+                      , lens
+  Exposed-Modules:      Network.Mail.Mime.Parser
+                        Network.Mail.Mime.Parser.Types
+  Other-Modules:        Network.Mail.Mime.Parser.Internal.Rfc2234
+                        Network.Mail.Mime.Parser.Internal.Rfc2822
+                        Network.Mail.Mime.Parser.Internal.Rfc2045
+                        Network.Mail.Mime.Parser.Internal.Common
+  Ghc-Options:          -Wall
+
+Test-Suite test
+  type:                 exitcode-stdio-1.0
+  hs-source-dirs:       ., test
+  main-is:              Spec.hs
+  build-depends:        base
+                      , hspec
+                      , attoparsec
+                      , old-time
+                      , bytestring
+                      , lens

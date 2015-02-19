@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {- |
-   Module      :  Text.ParserCombinators.Attoparsec.Rfc2234
+   Module      :  Network.Mail.Mime.Parser.Internal.Rfc2234
    Copyright   :  (c) 2013 Peter Simons
    License     :  BSD3
 
@@ -15,7 +15,7 @@
    here to avoid conflicts with Attoparsec's 'char' function.
  -}
 
-module Text.ParserCombinators.Attoparsec.Rfc2234 where
+module Network.Mail.Mime.Parser.Internal.Rfc2234 where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
@@ -23,7 +23,7 @@ import Data.Char (chr, ord)
 import Data.Monoid ((<>))
 import Control.Applicative (many, (<|>))
 import Control.Monad ( liftM2 )
-import Text.ParserCombinators.Attoparsec.ParsecCompat
+import Network.Mail.Mime.Parser.Internal.Common
 
 ----------------------------------------------------------------------
 -- * Primitive Parsers

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-
-   Module      :  Main
+   Module      :  Network.Mail.Mime.Parser.Internal.Rfc2822Spec
    Copyright   :  (c) 2013 Peter Simons
    License     :  BSD3
 
@@ -8,34 +8,24 @@
    Stability   :  provisional
    Portability :  unknown
 
-   HsEmail regression test suite.
+   Network.Mail.Mime.Parser.Internal.Rfc2822 Spec
 -}
 
-module Main ( main ) where
+module Network.Mail.Mime.Parser.Internal.Rfc2822Spec ( main, spec ) where
 
 import Test.Hspec
 import System.Time ( CalendarTime(..), Month(..), Day(..) )
 import Control.Applicative ((<*))
 import Data.Attoparsec.ByteString.Char8 (Parser, parseOnly, endOfInput)
-import Data.ByteString.Char8
-import Text.ParserCombinators.Attoparsec.Rfc2822
-
-parseTest :: Parser a -> ByteString -> IO a
-parseTest p input = case parseOnly (p <* endOfInput) input of
-                      Left err -> fail ("parse error at " ++ err)
-                      Right r -> return r
-
-parseIdemTest :: Parser ByteString -> ByteString -> Expectation
-parseIdemTest p input = parseTest p input `shouldReturn` input
-
-parseFailure :: (Show a) => Parser a -> ByteString -> Expectation
-parseFailure p input = parseOnly (p <* endOfInput) input `shouldSatisfy` failure
-  where
-    failure (Left _) = True
-    failure _        = False
+import Data.ByteString.Char8 (ByteString)
+import Network.Mail.Mime.Parser.Types
+import Network.Mail.Mime.Parser.Internal.Rfc2822
 
 main :: IO ()
-main = hspec $ do
+main = hspec spec
+
+spec :: Spec
+spec = do
   describe "Rfc2822.quoted_pair" $
     it "can quote a nul byte" $
       parseIdemTest quoted_pair "\\\0"
@@ -67,15 +57,13 @@ main = hspec $ do
     it "fails properly on incomplete input" $
       parseFailure obs_mbox_list "foo@example.org"
 
-  {-
   describe "Rfc2822.subject" $
-    it "doesn't consume leading whitespace" $
-      parseTest subject "Subject: foo\r\n" `shouldReturn` " foo"
+    it "consumes leading whitespace" $
+      parseTest subject "Subject: foo\r\n" `shouldReturn` "foo"
 
   describe "Rfc2822.comment" $
-    it "doesn't consume leading whitespace" $
-      parseTest comments "Comments: foo\r\n" `shouldReturn` " foo"
-  -}
+    it "consumes leading whitespace" $
+      parseTest comments "Comments: foo\r\n" `shouldReturn` "foo"
 
   -- Most of the following test cases have been adapted from
   -- <http://hackage.haskell.org/package/email-validate>.
@@ -311,3 +299,36 @@ main = hspec $ do
   describe "Rfc2822.body" $
     it "parses 8-bit characters correctly" $
       parseIdemTest body "abc äöüß def"
+
+  describe "Rfc2822.group" $
+    it "parses hand-picked inputs correctly" $
+      parseTest group "my group: user1@example.org, user2@example.org;"
+        `shouldReturn`
+      [ NameAddr Nothing "user1@example.org"
+      , NameAddr Nothing "user2@example.org"]
+
+  describe "Rfc2822.obs_angle_addr" $
+    it "parses hand-picked inputs correctly" $
+      parseTest obs_angle_addr "<@example1.org,@example2.org:joe@example.org>"
+        `shouldReturn`
+      "<joe@example.org>"
+
+  describe "Rfc2822.obs_mbox_list" $
+    it "parses hand-picked inputs correctly" $ do
+      parseTest obs_mbox_list "," `shouldReturn` []
+      parseFailure obs_mbox_list "joe@example.org"
+
+
+parseTest :: Parser a -> ByteString -> IO a
+parseTest p input = case parseOnly (p <* endOfInput) input of
+                      Left err -> fail ("parse error at " ++ err)
+                      Right r -> return r
+
+parseIdemTest :: Parser ByteString -> ByteString -> Expectation
+parseIdemTest p input = parseTest p input `shouldReturn` input
+
+parseFailure :: (Show a) => Parser a -> ByteString -> Expectation
+parseFailure p input = parseOnly (p <* endOfInput) input `shouldSatisfy` failure
+  where
+    failure (Left _) = True
+    failure _        = False

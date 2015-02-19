@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {- |
-   Module      :  Text.ParserCombinators.Attoparsec.Rfc2822
+   Module      :  Network.Mail.Mime.Parser.Internal.Rfc2822
    Copyright   :  (c) 2013 Peter Simons
    License     :  BSD3
 
@@ -13,7 +13,7 @@
    <http://www.faqs.org/rfcs/rfc2822.html>.
 -}
 
-module Text.ParserCombinators.Attoparsec.Rfc2822 where
+module Network.Mail.Mime.Parser.Internal.Rfc2822 where
 
 import System.Time
 import Data.Char (ord)
@@ -22,8 +22,9 @@ import Control.Applicative (many, pure, (<$>), (<*), (*>), (<|>))
 import Data.Monoid ((<>))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
-import Text.ParserCombinators.Attoparsec.Rfc2234 hiding (quoted_pair, quoted_string)
-import Text.ParserCombinators.Attoparsec.ParsecCompat
+import Network.Mail.Mime.Parser.Internal.Rfc2234 hiding (quoted_pair, quoted_string)
+import Network.Mail.Mime.Parser.Types (Message(..), Field(..), NameAddr(..))
+import Network.Mail.Mime.Parser.Internal.Common
 import Prelude hiding (takeWhile)
 
 -- * Useful parser combinators
@@ -418,14 +419,6 @@ zone            = (    do _ <- char '+'
 
 -- * Address Specification (section 3.4)
 
--- |A NameAddr is composed of an optional realname a mandatory
--- e-mail 'address'.
-
-data NameAddr = NameAddr { nameAddr_name :: Maybe ByteString
-                         , nameAddr_addr :: ByteString
-                         }
-                deriving (Show,Eq)
-
 -- |Parse a single 'mailbox' or an address 'group' and return the
 -- address(es).
 
@@ -463,11 +456,6 @@ angle_addr      = try (unfold (do _ <- char '<'
 -- |Parse a \"group\" of addresses. That is a 'display_name', followed
 -- by a colon, optionally followed by a 'mailbox_list', followed by a
 -- semicolon. The found address(es) are returned - what may be none.
--- Here is an example:
---
--- >>> :set -XOverloadedStrings
--- >>> parseOnly group "my group: user1@example.org, user2@example.org;"
--- Right [NameAddr {nameAddr_name = Nothing, nameAddr_addr = "user1@example.org"},NameAddr {nameAddr_name = Nothing, nameAddr_addr = "user2@example.org"}]
 
 group           :: Parser [NameAddr]
 group           = do _ <- display_name
@@ -557,12 +545,6 @@ isDText c = isNoWsCtl c || ord c `elem` ([33..90] ++ [94..126])
 
 -- * Overall message syntax (section 3.5)
 
--- |This data type repesents a parsed Internet Message as defined in
--- this RFC. It consists of an arbitrary number of header lines,
--- represented in the 'Field' data type, and a message body, which may
--- be empty.
-
-data Message = Message [Field] ByteString deriving Show
 
 -- |Parse a complete message as defined by this RFC and it broken down
 -- into the separate header fields and the message body. Header lines,
@@ -583,7 +565,7 @@ data Message = Message [Field] ByteString deriving Show
 message         :: Parser Message
 message         = do f <- fields
                      b <- option "" (do _ <- crlf; body)
-                     return (Message f b)
+                     return (Message f (Left b))
 
 -- |A message body is just an unstructured sequence of characters.
 
@@ -593,36 +575,6 @@ body            = takeByteString
 
 -- * Field definitions (section 3.6)
 
--- |This data type represents any of the header fields defined in this
--- RFC. Each of the various instances contains with the return value
--- of the corresponding parser.
-
-data Field      = OptionalField       ByteString ByteString
-                | From                [NameAddr]
-                | Sender              NameAddr
-                | ReturnPath          ByteString
-                | ReplyTo             [NameAddr]
-                | To                  [NameAddr]
-                | Cc                  [NameAddr]
-                | Bcc                 [NameAddr]
-                | MessageID           ByteString
-                | InReplyTo           [ByteString]
-                | References          [ByteString]
-                | Subject             ByteString
-                | Comments            ByteString
-                | Keywords            [[ByteString]]
-                | Date                CalendarTime
-                | ResentDate          CalendarTime
-                | ResentFrom          [NameAddr]
-                | ResentSender        NameAddr
-                | ResentTo            [NameAddr]
-                | ResentCc            [NameAddr]
-                | ResentBcc           [NameAddr]
-                | ResentMessageID     ByteString
-                | ResentReplyTo       [NameAddr]
-                | Received            ([(ByteString,ByteString)], CalendarTime)
-                | ObsReceived         [(ByteString,ByteString)]
-                deriving (Show)
 
 -- |This parser will parse an arbitrary number of header fields as
 -- defined in this RFC. For each field, an appropriate 'Field' value
@@ -661,7 +613,7 @@ fields
     <|> ResentBcc             <$> resent_bcc
     <|> ResentMessageID       <$> resent_msg_id
     <|> Received              <$> received
-    <|> uncurry OptionalField <$> optional_field
+    <|> uncurry OtherField    <$> optional_field
     )
 
 
@@ -1092,11 +1044,7 @@ obs_zone        = choice [ mkZone "UT"  0
 -- used to be called \"route address\" in earlier RFCs. It differs from a
 -- standard 'angle_addr' in two ways: (1) it allows far more
 -- liberal insertion of folding whitespace and comments and (2) the address may
--- contain a \"route\" (which this parser ignores):
---
--- >>> :set -XOverloadedStrings
--- >>> parseOnly obs_angle_addr "<@example1.org,@example2.org:joe@example.org>"
--- Right "<joe@example.org>"
+-- contain a \"route\" (which this parser ignores)
 
 obs_angle_addr  :: Parser ByteString
 obs_angle_addr  = unfold (do _ <- char '<'
@@ -1160,17 +1108,7 @@ obs_domain      = do r1 <- atom
 -- commas. But you may have multiple consecutive commas without giving
 -- a 'mailbox'. You may also have a valid 'obs_mbox_list' that
 -- contains /no/ 'mailbox' at all. On the other hand, you /must/ have
--- at least one comma. The following example is valid:
---
--- >>> :set -XOverloadedStrings
--- >>> parseOnly obs_mbox_list ","
--- Right []
---
--- But this one is not:
---
--- >>> :set -XOverloadedStrings
--- >>> parseOnly obs_mbox_list "joe@example.org"
--- Left "not enough input"
+-- at least one comma.
 
 obs_mbox_list   :: Parser [NameAddr]
 obs_mbox_list   = do r1 <- many1 (try (do r <- maybeOption mailbox
@@ -1199,33 +1137,33 @@ obs_addr_list   = do r1 <- many1 (   maybeOption address
 
 -- * Obsolete header fields (section 4.5)
 
-obs_fields      :: Parser [Field]
-obs_fields      = many (    try (do { r <- obs_from; return (From r) })
-                        <|> try (do { r <- obs_sender; return (Sender r) })
-                        <|> try (do { r <- obs_return; return (ReturnPath r) })
-                        <|> try (do { r <- obs_reply_to; return (ReplyTo r) })
-                        <|> try (do { r <- obs_to; return (To r) })
-                        <|> try (do { r <- obs_cc; return (Cc r) })
-                        <|> try (do { r <- obs_bcc; return (Bcc r) })
-                        <|> try (do { r <- obs_message_id; return (MessageID r) })
-                        <|> try (do { r <- obs_in_reply_to; return (InReplyTo r) })
-                        <|> try (do { r <- obs_references; return (References r) })
-                        <|> try (do { r <- obs_subject; return (Subject r) })
-                        <|> try (do { r <- obs_comments; return (Comments r) })
-                        <|> try (do { r <- obs_keywords; return (Keywords [r]) })
-                        <|> try (do { r <- obs_orig_date; return (Date r) })
-                        <|> try (do { r <- obs_resent_date; return (ResentDate r) })
-                        <|> try (do { r <- obs_resent_from; return (ResentFrom r) })
-                        <|> try (do { r <- obs_resent_send; return (ResentSender r) })
-                        <|> try (do { r <- obs_resent_to; return (ResentTo r) })
-                        <|> try (do { r <- obs_resent_cc; return (ResentCc r) })
-                        <|> try (do { r <- obs_resent_bcc; return (ResentBcc r) })
-                        <|> try (do { r <- obs_resent_mid; return (ResentMessageID r) })
-                        <|> try (do { r <- obs_resent_reply; return (ResentReplyTo r) })
-                        <|> try (do { r <- obs_received; return (ObsReceived r) })
-                         -- catch all
-                        <|> (do { (name,cont) <- obs_optional; return (OptionalField name cont) })
-                       )
+obs_fields :: Parser [Field]
+obs_fields
+  = many
+    (   From                  <$> obs_from
+    <|> Sender                <$> obs_sender
+    <|> ReturnPath            <$> obs_return
+    <|> ReplyTo               <$> obs_reply_to
+    <|> To                    <$> obs_to
+    <|> Cc                    <$> obs_cc
+    <|> Bcc                   <$> obs_bcc
+    <|> MessageID             <$> obs_message_id
+    <|> InReplyTo             <$> obs_in_reply_to
+    <|> References            <$> obs_references
+    <|> Subject               <$> obs_subject
+    <|> Comments              <$> obs_comments
+    <|> Keywords . (:[])      <$> obs_keywords
+    <|> Date                  <$> obs_orig_date
+    <|> ResentDate            <$> obs_resent_date
+    <|> ResentFrom            <$> obs_resent_from
+    <|> ResentSender          <$> obs_resent_send
+    <|> ResentTo              <$> obs_resent_to
+    <|> ResentCc              <$> obs_resent_cc
+    <|> ResentBcc             <$> obs_resent_bcc
+    <|> ResentMessageID       <$> obs_resent_mid
+    <|> ObsReceived           <$> obs_received
+    <|> uncurry OtherField    <$> obs_optional
+    )
 
 
 -- ** Obsolete origination date field (section 4.5.1)
