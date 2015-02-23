@@ -13,6 +13,7 @@
 module Network.Mail.Mime.Parser.Types (
   -- |Types
     Message (..)
+  , MultipartBody (..)
   , Field (..)
   , Part (..)
   , Parameter (..)
@@ -20,21 +21,29 @@ module Network.Mail.Mime.Parser.Types (
   , NameAddr (..)
 
   -- |Lenses
-  , msgBody
   , msgHeaders
+  , msgBody
+  , msgMultipartBody
   , nameAddr_addr
   , nameAddr_name
   , cdDisposition
   , cdFilename
-  , ctMime
-  , ctParam
-  , partContent
-  , partEncoding
-  , partFilename
+  , ctType
+  , ctSubtype
+  , ctParams
   , partHeaders
-  , partType
+  , partBody
+  , mpPreamble
+  , mpEpilogue
+  , mpParts
+  , mimeExtName
+  , mimeExtValue
+  , mimeVerMajor
+  , mimeVerMinor
 
   -- |Prisms
+  , _Message
+  , _MultipartMessage
   , _OtherField
   , _From
   , _Sender
@@ -81,10 +90,22 @@ import Data.ByteString (ByteString)
 -- be empty.
 
 data Message
-  = Message {
-        _msgHeaders :: [Field]
-      , _msgBody    :: Either ByteString [Part]
-    } deriving Show
+  = Message
+      { _msgHeaders :: [Field]
+      , _msgBody    :: ByteString
+      }
+  | MultipartMessage
+      { _msgHeaders       :: [Field]
+      , _msgMultipartBody :: MultipartBody
+      }
+  deriving Show
+
+data MultipartBody
+  = MultipartBody {
+        _mpPreamble :: ByteString
+      , _mpParts    :: [Part]
+      , _mpEpilogue :: ByteString
+      } deriving Show
 
 data Field
   -- | RFC2822 fields
@@ -117,14 +138,24 @@ data Field
   -- | RFC2045 fields
   --
   | ContentType {
-        _ctMime  :: ByteString
-      , _ctParam :: Maybe Parameter
+        _ctType    :: ByteString
+      , _ctSubtype :: ByteString
+      , _ctParams  :: [Parameter]
       }
+  | ContentDescription ByteString
   | ContentLength Integer
   | ContentTransferEncoding Encoding
   | ContentDisposition {
         _cdDisposition :: ByteString
       , _cdFilename    :: Maybe ByteString
+      }
+  | MimeExtension {
+        _mimeExtName  :: ByteString
+      , _mimeExtValue :: ByteString
+      }
+  | MimeVersion {
+        _mimeVerMajor :: Int
+      , _mimeVerMinor :: Int
       }
   deriving (Show, Eq)
 --
@@ -138,11 +169,8 @@ data NameAddr
 
 data Part
   = Part {
-        _partType     :: ByteString
-      , _partEncoding :: Encoding
-      , _partFilename :: Maybe ByteString
-      , _partHeaders  :: [Field]
-      , _partContent  :: ByteString
+        _partHeaders :: [Field]
+      , _partBody    :: ByteString
       }
   deriving Show
 
@@ -165,6 +193,8 @@ data Encoding
   deriving (Eq, Show)
 
 makeLenses ''Message
+makePrisms ''Message
+makeLenses ''MultipartBody
 makeLenses ''NameAddr
 makeLenses ''Field
 makePrisms ''Field

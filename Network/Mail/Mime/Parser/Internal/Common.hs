@@ -13,6 +13,7 @@
 module Network.Mail.Mime.Parser.Internal.Common (
     noneOf
   , between
+  , trim
   , optional
   , oneOf
   , isHorizontalSpace
@@ -46,3 +47,6 @@ oneOf = satisfy . inClass
 
 isHorizontalSpace :: Char -> Bool
 isHorizontalSpace c = c==' ' || c=='\t'
+
+trim :: Parser a -> Parser a
+trim = between skipSpace skipSpace

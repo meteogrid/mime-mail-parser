@@ -30,6 +30,7 @@ Library
   Other-Modules:        Network.Mail.Mime.Parser.Internal.Rfc2234
                         Network.Mail.Mime.Parser.Internal.Rfc2822
                         Network.Mail.Mime.Parser.Internal.Rfc2045
+                        Network.Mail.Mime.Parser.Internal.Rfc2046
                         Network.Mail.Mime.Parser.Internal.Common
   Ghc-Options:          -Wall
 

@@ -201,14 +201,18 @@ quoted_string   :: Parser ByteString
 quoted_string   = unfold quoted_string_text
 
 quoted_string_text   :: Parser ByteString
-quoted_string_text = (do
+quoted_string_text = (fmap (\s -> "\"" <> s <> "\"") 
+                       quoted_string_text_no_quotes) <?> "quoted_string"
+
+quoted_string_text_no_quotes :: Parser ByteString
+quoted_string_text_no_quotes = do
   _ <- dquote
   r1 <- many (do r1 <- option "" fws
                  r2 <- qcontent
                  return (r1 <> r2))
   r2 <- option "" fws
   _ <- dquote
-  return ("\"" <> S.concat r1 <> r2 <> "\"")) <?> "quoted string"
+  return (S.concat r1 <> r2)
 
 -- * Miscellaneous tokens (section 3.2.6)
 
@@ -565,7 +569,7 @@ isDText c = isNoWsCtl c || ord c `elem` ([33..90] ++ [94..126])
 message         :: Parser Message
 message         = do f <- fields
                      b <- option "" (do _ <- crlf; body)
-                     return (Message f (Left b))
+                     return (Message f b)
 
 -- |A message body is just an unstructured sequence of characters.
 
@@ -589,33 +593,33 @@ body            = takeByteString
 -- that any message that can possibly be accepted /should/ be.
 
 fields :: Parser [Field]
-fields
-  = many
-    (   From                  <$> from
-    <|> Sender                <$> sender
-    <|> ReturnPath            <$> return_path
-    <|> ReplyTo               <$> reply_to
-    <|> To                    <$> to
-    <|> Cc                    <$> cc
-    <|> Bcc                   <$> bcc
-    <|> MessageID             <$> message_id
-    <|> InReplyTo             <$> in_reply_to
-    <|> References            <$> references
-    <|> Subject               <$> subject
-    <|> Comments              <$> comments
-    <|> Keywords              <$> keywords
-    <|> Date                  <$> orig_date
-    <|> ResentDate            <$> resent_date
-    <|> ResentFrom            <$> resent_from
-    <|> ResentSender          <$> resent_sender
-    <|> ResentTo              <$> resent_to
-    <|> ResentCc              <$> resent_cc
-    <|> ResentBcc             <$> resent_bcc
-    <|> ResentMessageID       <$> resent_msg_id
-    <|> Received              <$> received
-    <|> uncurry OtherField    <$> optional_field
-    )
+fields = many rfc2822_field
 
+rfc2822_field :: Parser Field
+rfc2822_field
+    = From               <$> from
+  <|> Sender             <$> sender
+  <|> ReturnPath         <$> return_path
+  <|> ReplyTo            <$> reply_to
+  <|> To                 <$> to
+  <|> Cc                 <$> cc
+  <|> Bcc                <$> bcc
+  <|> MessageID          <$> message_id
+  <|> InReplyTo          <$> in_reply_to
+  <|> References         <$> references
+  <|> Subject            <$> subject
+  <|> Comments           <$> comments
+  <|> Keywords           <$> keywords
+  <|> Date               <$> orig_date
+  <|> ResentDate         <$> resent_date
+  <|> ResentFrom         <$> resent_from
+  <|> ResentSender       <$> resent_sender
+  <|> ResentTo           <$> resent_to
+  <|> ResentCc           <$> resent_cc
+  <|> ResentBcc          <$> resent_bcc
+  <|> ResentMessageID    <$> resent_msg_id
+  <|> Received           <$> received
+  <|> uncurry OtherField <$> optional_field
 
 -- ** The origination date field (section 3.6.1)
 
