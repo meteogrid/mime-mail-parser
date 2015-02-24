@@ -30,7 +30,7 @@ spec = sequence_ . map fixture_spec $ [
       , expectedHeaders = [
             From [NameAddr (Just "Name") "name@company.com"]
           , To [(NameAddr Nothing "name@company2.com")]
-          --,  Subject "Mail avec fichier attaché de 1ko"
+          , Subject "Mail avec fichier attaché de 1ko"
           ]
       }
   , fixture {
@@ -38,7 +38,7 @@ spec = sequence_ . map fixture_spec $ [
       , expectedHeaders = [
             From [NameAddr (Just "Name") "name@company.com"]
           , To [(NameAddr Nothing "name@company2.com")]
-          --,  Subject "Mail avec fichier attaché de 3ko"
+          , Subject "Mail avec fichier attaché de 3ko"
           ]
       }
   ]

@@ -27,7 +27,7 @@ import Network.Mail.Mime.Parser.Internal.Rfc2234
 import Network.Mail.Mime.Parser.Internal.Rfc2822
 
 attribute :: Parser ByteString
-attribute = fmap sToLower token
+attribute = tokenToLower
 
 composite_type :: Parser ByteString
 composite_type = fmap sToLower
@@ -107,18 +107,12 @@ token :: Parser ByteString
 token = takeWhile1 (\c -> isAscii c
                        && not (isSpace c || isNoWsCtl c || c `elem` tspecials))
 
+
+tokenToLower :: Parser ByteString
+tokenToLower = fmap sToLower token
+
 tspecials :: [Char]
 tspecials = "()<>@,;:\\\"/[]?="
-
-hex_octet :: Parser ByteString
-hex_octet = do
-  _ <- "="
-  a <- hex_digit
-  b <- hex_digit
-  return $ S.pack ['=', a, b]
-
-hex_digit :: Parser Char
-hex_digit = digit <|> satisfy (\c -> c>='A' && c<= 'F')
 
 mime_extension_field :: Parser Field
 mime_extension_field

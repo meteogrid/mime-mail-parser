@@ -24,11 +24,15 @@ Library
                       , attoparsec
                       , old-time
                       , bytestring
+                      , text
+                      , text-icu
+                      , base64-bytestring
                       , lens
   Exposed-Modules:      Network.Mail.Mime.Parser
                         Network.Mail.Mime.Parser.Types
   Other-Modules:        Network.Mail.Mime.Parser.Internal.Rfc2045
                         Network.Mail.Mime.Parser.Internal.Rfc2046
+                        Network.Mail.Mime.Parser.Internal.Rfc2047
                         Network.Mail.Mime.Parser.Internal.Rfc2183
                         Network.Mail.Mime.Parser.Internal.Rfc2234
                         Network.Mail.Mime.Parser.Internal.Rfc2822
@@ -44,5 +48,8 @@ Test-Suite test
                       , attoparsec
                       , old-time
                       , bytestring
+                      , text
+                      , text-icu
+                      , base64-bytestring
                       , lens
   Ghc-Options:          -Wall

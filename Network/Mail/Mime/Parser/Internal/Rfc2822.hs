@@ -229,9 +229,11 @@ phrase          = {- many1 word <?> "phrase" <|> -} obs_phrase
 -- |Match any non-whitespace, non-control US-ASCII character except
 -- for \"@\\@\" and \"@\"@\".
 
-utext           :: Parser Char
-utext           = no_ws_ctl <|> satisfy (\c -> ord c `elem` [33..126])
-                  <?> "regular US-ASCII character (excluding '\\', and '\"')"
+utext :: Parser ByteString
+utext = fmap S.singleton no_ws_ctl
+    <|> fmap S.singleton (satisfy (\c -> ord c `elem` [33..126]))
+    <|> obs_utext
+    <?> "regular US-ASCII character (excluding '\\', and '\"')"
 
 -- |Match any number of 'utext' tokens.
 --
@@ -243,7 +245,7 @@ unstructured :: Parser ByteString
 unstructured = do r1 <- option "" fws
                   r2 <- many (do r3 <- utext
                                  r4 <- option "" fws
-                                 return (r3 `S.cons` r4))
+                                 return (r3 <> r4))
                   return (r1 <> S.concat r2)
                <?> "unstructured text"
 
@@ -920,10 +922,10 @@ obs_text        = do let lfs = takeWhile (=='\n')
                          crs = takeWhile (=='\r')
                      r1 <- lfs
                      r2 <- crs
-                     r3 <- many (do r4 <- obs_char
-                                    r5 <- lfs
-                                    r6 <- crs
-                                    return (r4 `S.cons` (r5 <> r6)))
+                     r3 <- many1 (do r4 <- obs_char
+                                     r5 <- lfs
+                                     r6 <- crs
+                                     return (r4 `S.cons` (r5 <> r6)))
                      return (r1 <> r2 <> S.concat r3)
 
 -- |Match and return the obsolete \"char\" syntax, which - unlike

@@ -24,14 +24,12 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "Rfc2045.hex_octet" $
-    it "parses hand-picked inputs correctly" $ do
-      parseTest hex_octet "=0A" `shouldReturn` "=0A"
-
   describe "Rfc2045.token" $
     it "parses hand-picked inputs correctly" $ do
       parseTest token "charset" `shouldReturn` "charset"
+      parseTest token "ISO-8859-1" `shouldReturn` "ISO-8859-1"
       parseFailure token "charset="
+      parseFailure token "charset?"
 
   describe "Rfc2045.content_type_parm" $
     it "parses hand-picked inputs correctly" $ do
