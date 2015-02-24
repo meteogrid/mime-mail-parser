@@ -45,3 +45,4 @@ Test-Suite test
                       , old-time
                       , bytestring
                       , lens
+  Ghc-Options:          -Wall

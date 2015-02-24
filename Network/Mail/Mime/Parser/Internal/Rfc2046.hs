@@ -26,15 +26,6 @@ import Network.Mail.Mime.Parser.Internal.Rfc2234
 import Network.Mail.Mime.Parser.Internal.Rfc2045
 import Network.Mail.Mime.Parser.Internal.Rfc2822
 
-multipart_message :: Parser Message
-multipart_message = do
-  f <- mime_message_headers
-  b <- option empty_multipart_body (crlf *> multipart_body undefined)
-  return (MultipartMessage f b)
-
-empty_multipart_body :: MultipartBody
-empty_multipart_body = MultipartBody "" [] ""
-
 multipart_body :: ByteString -> Parser MultipartBody
 multipart_body boundary = do
   let dash_boundary   = "--" *> string boundary *> pure ()

@@ -566,10 +566,11 @@ isDText c = isNoWsCtl c || ord c `elem` ([33..90] ++ [94..126])
 -- the appropriate parser together yourself. You'll find that this is
 -- rather easy to do. Refer to the 'fields' parser for further details.
 
-message         :: Parser Message
-message         = do f <- fields
-                     b <- option "" (crlf *> body)
-                     return (Message f b)
+rfc2822_message :: Parser Message
+rfc2822_message = do
+  f <- rfc2822_fields
+  b <- option "" (crlf *> body)
+  return (Message f b)
 
 -- |A message body is just an unstructured sequence of characters.
 
@@ -592,8 +593,8 @@ body            = takeByteString
 -- hardly ever return a syntax error -- what conforms with the idea
 -- that any message that can possibly be accepted /should/ be.
 
-fields :: Parser [Field]
-fields = many rfc2822_field
+rfc2822_fields :: Parser [Field]
+rfc2822_fields = many rfc2822_field
 
 rfc2822_field :: Parser Field
 rfc2822_field

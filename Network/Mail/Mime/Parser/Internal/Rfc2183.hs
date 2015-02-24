@@ -17,11 +17,7 @@
 module Network.Mail.Mime.Parser.Internal.Rfc2183 where
 
 
-import Control.Applicative (many, pure, (<$>), (<*>), (<*), (*>), (<|>))
-import Data.Char (isAscii, toLower)
-import Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import Data.Monoid ((<>))
+import Control.Applicative (many, pure, (<$>), (<*>), (*>), (<|>))
 import Network.Mail.Mime.Parser.Internal.Common
 import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2822
