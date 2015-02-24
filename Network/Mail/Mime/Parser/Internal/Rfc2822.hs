@@ -568,7 +568,7 @@ isDText c = isNoWsCtl c || ord c `elem` ([33..90] ++ [94..126])
 
 message         :: Parser Message
 message         = do f <- fields
-                     b <- option "" (do _ <- crlf; body)
+                     b <- option "" (crlf *> body)
                      return (Message f b)
 
 -- |A message body is just an unstructured sequence of characters.

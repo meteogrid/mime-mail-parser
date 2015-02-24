@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {- |
    Module      :  Network.Mail.Mime.Parser.Internal.Rfc2045
-   Copyright   :  (c) 2015 Alberto Valverde
+   Copyright   :  (c) 2015 Alberto Valverde González
    License     :  BSD3
 
    Maintainer  :  alberto@toscat.net
@@ -47,7 +47,9 @@ discrete_type = fmap sToLower
 content_type :: Parser Field
 content_type
   = header "Content-Type" $
-      ContentType <$> type_ <*> ("/"*>subtype) <*> many (trim ";" *> parameter)
+      ContentType <$> type_
+                  <*> ("/"*>subtype)
+                  <*> many (trim ";" *> content_type_parm)
 
 content_description :: Parser Field
 content_description
@@ -65,15 +67,20 @@ mechanism = "7bit"            *> pure Binary7Bit
        <|> (OtherEncoding <$> x_token)
        <|> (OtherEncoding <$> ietf_token)
 
-parameter :: Parser Parameter
-parameter = do
-  attr <- attribute
-  val  <- (trim "=") *> value
+content_type_parm :: Parser ContentTypeParm
+content_type_parm = do
+  (attr, val) <- parameter
   return $ case attr of
     "boundary" -> Boundary val
     "name"     -> Name val
     "charset"  -> Charset val
-    _          -> OtherParameter attr val
+    _          -> ContentTypeParm attr val
+
+someparameter :: Parser ByteString -> Parser a -> Parser (ByteString, a)
+someparameter a v = (,) <$> a <*> ((trim "=") *> v)
+
+parameter :: Parser (ByteString, ByteString)
+parameter = someparameter attribute value
 
 value :: Parser ByteString
 value = token <|> quoted_string_text_no_quotes

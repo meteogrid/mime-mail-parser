@@ -12,8 +12,4 @@
  -}
 
 module Network.Mail.Mime.Parser (
-  module ReExport
 ) where
-
-import Network.Mail.Mime.Parser.Types as ReExport
-import Network.Mail.Mime.Parser.Internal.Rfc2822 as ReExport

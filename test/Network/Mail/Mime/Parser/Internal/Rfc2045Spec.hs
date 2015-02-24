@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-
-   Module      :  Network.Mail.Mime.Parser.Internal.Rfc2822Spec
-   Copyright   :  (c) 2013 Peter Simons
+   Module      :  Network.Mail.Mime.Parser.Internal.Rfc2045Spec
+   Copyright   :  (c) 2015 Alberto Valverde González
    License     :  BSD3
 
    Maintainer  :  alberto@toscat.net
@@ -33,9 +33,9 @@ spec = do
       parseTest token "charset" `shouldReturn` "charset"
       parseFailure token "charset="
 
-  describe "Rfc2045.parameter" $
+  describe "Rfc2045.content_type_parm" $
     it "parses hand-picked inputs correctly" $ do
-      parseTest parameter "charset=utf-8" `shouldReturn` Charset "utf-8"
+      parseTest content_type_parm "charset=utf-8" `shouldReturn` Charset "utf-8"
 
   describe "Rfc2045.content_type" $
     it "parses hand-picked inputs correctly" $ do
@@ -46,6 +46,6 @@ spec = do
       parseTest content_type "Content-Type: text/plain; charset = utf-8\r\n"
         `shouldReturn` (ContentType "text" "plain" [Charset "utf-8"])
       parseTest content_type "Content-Type: text/plain; charset=utf-8; foo=bar\r\n"
-        `shouldReturn` (ContentType "text" "plain" [Charset "utf-8", OtherParameter "foo" "bar"])
+        `shouldReturn` (ContentType "text" "plain" [Charset "utf-8", ContentTypeParm "foo" "bar"])
 
       parseTest content_type "Content-Type: multipart/mixed; boundary=\"_----------=_142387904494050\"\r\n" `shouldReturn`(ContentType "multipart" "mixed" [Boundary "_----------=_142387904494050"])

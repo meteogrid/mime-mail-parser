@@ -16,7 +16,9 @@ module Network.Mail.Mime.Parser.Types (
   , MultipartBody (..)
   , Field (..)
   , Part (..)
-  , Parameter (..)
+  , ContentTypeParm (..)
+  , ContentDispositionParm (..)
+  , ContentDispositionType (..)
   , Encoding (..)
   , NameAddr (..)
 
@@ -26,11 +28,11 @@ module Network.Mail.Mime.Parser.Types (
   , msgMultipartBody
   , nameAddr_addr
   , nameAddr_name
-  , cdDisposition
-  , cdFilename
+  , cdType
+  , cdParms
   , ctType
   , ctSubtype
-  , ctParams
+  , ctParms
   , partHeaders
   , partBody
   , mpPreamble
@@ -77,7 +79,14 @@ module Network.Mail.Mime.Parser.Types (
   , _Boundary
   , _Name
   , _Charset
-  , _OtherParameter
+  , _ContentTypeParm
+  
+  , _Filename
+  , _CreationDate
+  , _ModificationDate
+  , _ReadDate
+  , _Size
+  , _ContentDispositionParm
 ) where
 
 import System.Time (CalendarTime)
@@ -136,18 +145,17 @@ data Field
   | ObsReceived         [(ByteString,ByteString)]
 
   -- | RFC2045 fields
-  --
   | ContentType {
         _ctType    :: ByteString
       , _ctSubtype :: ByteString
-      , _ctParams  :: [Parameter]
+      , _ctParms   :: [ContentTypeParm]
       }
-  | ContentDescription ByteString
-  | ContentLength Integer
+  | ContentDescription      ByteString
+  | ContentLength           Integer
   | ContentTransferEncoding Encoding
   | ContentDisposition {
-        _cdDisposition :: ByteString
-      , _cdFilename    :: Maybe ByteString
+        _cdType  :: ContentDispositionType
+      , _cdParms :: [ContentDispositionParm]
       }
   | MimeExtension {
         _mimeExtName  :: ByteString
@@ -174,11 +182,26 @@ data Part
       }
   deriving Show
 
-data Parameter
-  = Boundary       ByteString
-  | Name           ByteString
-  | Charset        ByteString
-  | OtherParameter ByteString ByteString
+data ContentTypeParm
+  = Boundary         ByteString
+  | Name             ByteString
+  | Charset          ByteString
+  | ContentTypeParm  ByteString ByteString
+  deriving (Show, Eq)
+
+data ContentDispositionType
+  = Inline
+  | Attachment
+  | ContentDispositionType ByteString
+  deriving (Show, Eq)
+
+data ContentDispositionParm
+  = Filename                ByteString
+  | CreationDate            CalendarTime
+  | ModificationDate        CalendarTime
+  | ReadDate                CalendarTime
+  | Size                    Integer
+  | ContentDispositionParm  ByteString ByteString
   deriving (Show, Eq)
 
 
@@ -199,4 +222,6 @@ makeLenses ''NameAddr
 makeLenses ''Field
 makePrisms ''Field
 makeLenses ''Part
-makePrisms ''Parameter
+makePrisms ''ContentTypeParm
+makePrisms ''ContentDispositionType
+makePrisms ''ContentDispositionParm
