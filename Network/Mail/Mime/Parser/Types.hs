@@ -92,6 +92,7 @@ module Network.Mail.Mime.Parser.Types (
 import System.Time (CalendarTime)
 import Control.Lens
 import Data.ByteString (ByteString)
+import Data.Text (Text)
 
 -- |This data type repesents a parsed Internet Message.
 -- It consists of an arbitrary number of header lines,
@@ -118,7 +119,7 @@ data MultipartBody
 
 data Field
   -- | RFC2822 fields
-  = OtherField          ByteString ByteString
+  = OtherField          ByteString Text
   | From                [NameAddr]
   | Sender              NameAddr
   | ReturnPath          ByteString
@@ -129,9 +130,9 @@ data Field
   | MessageID           ByteString
   | InReplyTo           [ByteString]
   | References          [ByteString]
-  | Subject             ByteString
-  | Comments            ByteString
-  | Keywords            [[ByteString]]
+  | Subject             Text
+  | Comments            Text
+  | Keywords            [[Text]]
   | Date                CalendarTime
   | ResentDate          CalendarTime
   | ResentFrom          [NameAddr]
@@ -159,7 +160,7 @@ data Field
       }
   | MimeExtension {
         _mimeExtName  :: ByteString
-      , _mimeExtValue :: ByteString
+      , _mimeExtValue :: Text
       }
   | MimeVersion {
         _mimeVerMajor :: Int
@@ -170,7 +171,7 @@ data Field
 -- |A NameAddr is composed of an optional realname a mandatory
 -- e-mail 'address'.
 data NameAddr
-  = NameAddr { _nameAddr_name :: Maybe ByteString
+  = NameAddr { _nameAddr_name :: Maybe Text
              , _nameAddr_addr :: ByteString }
   deriving (Show,Eq)
 

@@ -20,9 +20,13 @@ import Data.Char (ord)
 import Data.Maybe (catMaybes)
 import Control.Applicative (many, pure, (<$>), (<*), (*>), (<|>))
 import Data.Monoid ((<>))
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
 import Network.Mail.Mime.Parser.Internal.Rfc2234 hiding (quoted_pair, quoted_string)
+import Network.Mail.Mime.Parser.Internal.Rfc2047 (encoded_word)
 import Network.Mail.Mime.Parser.Types (Message(..), Field(..), NameAddr(..))
 import Network.Mail.Mime.Parser.Internal.Common
 import Prelude hiding (takeWhile)
@@ -223,7 +227,7 @@ word            = unfold (atom <|> quoted_string)     <?> "word"
 
 -- |Match either one or more 'word's or an 'obs_phrase'.
 
-phrase          :: Parser [ByteString]
+phrase          :: Parser [Text]
 phrase          = {- many1 word <?> "phrase" <|> -} obs_phrase
 
 -- |Match any non-whitespace, non-control US-ASCII character except
@@ -241,12 +245,12 @@ utext = fmap S.singleton no_ws_ctl
 -- Please note that any comments or whitespace that prefaces or
 -- follows the actual 'utext' is /included/ in the returned string.
 
-unstructured :: Parser ByteString
-unstructured = do r1 <- option "" fws
-                  r2 <- many (do r3 <- utext
-                                 r4 <- option "" fws
+unstructured :: Parser Text
+unstructured = do r1 <- fmap decodeUtf8 (option "" fws)
+                  r2 <- many (do r3 <- encoded_word <|> fmap decodeUtf8 utext
+                                 r4 <- fmap decodeUtf8 (option "" fws)
                                  return (r3 <> r4))
-                  return (r1 <> S.concat r2)
+                  return (r1 <> T.concat r2)
                <?> "unstructured text"
 
 
@@ -473,8 +477,8 @@ group           = do _ <- display_name
 
 -- |Parse and return a 'phrase'.
 
-display_name    :: Parser ByteString
-display_name    = fmap S.unwords phrase
+display_name    :: Parser Text
+display_name    = fmap T.unwords phrase
                   <?> "display name"
 
 -- |Parse a list of 'mailbox' addresses, every two addresses being
@@ -752,21 +756,21 @@ no_fold_literal = do _ <- char '['
 -- Please note that all whitespace and/or comments are preserved, i.e.
 -- the result of parsing @\"Subject: foo\"@ is @\" foo\"@, not @\"foo\"@.
 
-subject         :: Parser ByteString
+subject         :: Parser Text
 subject         = header "Subject" unstructured
 
 -- |Parse a \"@Comments:@\" header line and return its contents verbatim.
 -- Please note that all whitespace and/or comments are preserved, i.e.
 -- the result of parsing @\"Comments: foo\"@ is @\" foo\"@, not @\"foo\"@.
 
-comments        :: Parser ByteString
+comments        :: Parser Text
 comments        = header "Comments" unstructured
 
 -- |Parse a \"@Keywords:@\" header line and return the list of 'phrase's
 -- found. Please not that each phrase is again a list of 'atom's, as
 -- returned by the 'phrase' parser.
 
-keywords        :: Parser [[ByteString]]
+keywords        :: Parser [[Text]]
 keywords        = header "Keywords" (do r1 <- phrase
                                         r2 <- many (do _ <- char ','; phrase)
                                         return (r1:r2))
@@ -874,7 +878,7 @@ item_value      = choice [ try (do { r <- many1 angle_addr; return (S.concat r) 
 -- 'field_name' and 'unstructured' text of the header. The name will
 -- /not/ contain the terminating colon.
 
-optional_field  :: Parser (ByteString,ByteString)
+optional_field  :: Parser (ByteString,Text)
 optional_field  = do n <- field_name
                      _ <- char ':'
                      skipSpace
@@ -944,23 +948,26 @@ obs_utext       = obs_text
 -- |Match the obsolete \"phrase\" syntax, which - unlike 'phrase' -
 -- allows dots between tokens.
 
-obs_phrase      :: Parser [ByteString]
-obs_phrase      = do r1 <- word
-                     r2 <- many $ choice [ word
-                                         , string "."
+obs_phrase      :: Parser [Text]
+obs_phrase      = do r1 <- encoded_word <|> wordT
+                     r2 <- many $ choice [ encoded_word <|> wordT
+                                         , string "." *> pure "."
                                          , do { _ <- cfws; return "" }
                                          ]
-                     return (r1 : filter (not . S.null) r2)
+                     return (r1 : filter (not . T.null) r2)
+
+wordT :: Parser Text
+wordT = fmap decodeUtf8 word
 
 -- |Match a  \"phrase list\" syntax and return the list of 'String's
 -- that make up the phrase. In contrast to a 'phrase', the
 -- 'obs_phrase_list' separates the individual words by commas. This
 -- syntax is - as you will have guessed - obsolete.
 
-obs_phrase_list :: Parser [ByteString]
+obs_phrase_list :: Parser [Text]
 obs_phrase_list = do r1 <- many1 (do r <- option [] phrase
                                      _ <- unfold $ char ','
-                                     return (filter (not . S.null) r))
+                                     return (filter (not . T.null) r))
                      r2 <- option [] phrase
                      return (concat r1 ++ r2)
                   <|> phrase
@@ -1269,19 +1276,19 @@ obs_id_right    = domain <?> "right part of an message ID"
 -- |Parse a 'subject' header line but allow for the obsolete
 -- folding syntax.
 
-obs_subject     :: Parser ByteString
+obs_subject     :: Parser Text
 obs_subject     = obs_header "Subject" unstructured
 
 -- |Parse a 'comments' header line but allow for the obsolete
 -- folding syntax.
 
-obs_comments    :: Parser ByteString
+obs_comments    :: Parser Text
 obs_comments    = obs_header "Comments" unstructured
 
 -- |Parse a 'keywords' header line but allow for the obsolete
 -- folding syntax. Also, this parser accepts 'obs_phrase_list'.
 
-obs_keywords    :: Parser [ByteString]
+obs_keywords    :: Parser [Text]
 obs_keywords    = obs_header "Keywords" obs_phrase_list
 
 
@@ -1353,7 +1360,7 @@ obs_path        = obs_angle_addr
 -- liberal line-folding syntax between the \"field_name\" and the \"field
 -- text\".
 
-obs_optional    :: Parser (ByteString,ByteString)
+obs_optional    :: Parser (ByteString,Text)
 obs_optional    = do n <- field_name
                      _ <- many wsp
                      _ <- char ':'

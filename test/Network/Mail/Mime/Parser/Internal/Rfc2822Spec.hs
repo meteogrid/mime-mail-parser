@@ -15,7 +15,6 @@ module Network.Mail.Mime.Parser.Internal.Rfc2822Spec ( main, spec ) where
 
 import Test.Hspec
 import System.Time ( CalendarTime(..), Month(..), Day(..) )
-import Data.ByteString.Char8 (ByteString)
 import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2822
 import Util
@@ -56,9 +55,11 @@ spec = do
     it "fails properly on incomplete input" $
       parseFailure obs_mbox_list "foo@example.org"
 
-  describe "Rfc2822.subject" $
+  describe "Rfc2822.subject" $ do
     it "consumes leading whitespace" $
       parseTest subject "Subject: foo\r\n" `shouldReturn` "foo"
+    it "parses hand-picked inputs correctly" $
+      parseTest subject "Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=\r\n  =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg==?=\r\n" `shouldReturn` "If you can read this yo\r\n  u understand the example."
 
   describe "Rfc2822.comment" $
     it "consumes leading whitespace" $
@@ -316,3 +317,7 @@ spec = do
     it "parses hand-picked inputs correctly" $ do
       parseTest obs_mbox_list "," `shouldReturn` []
       parseFailure obs_mbox_list "joe@example.org"
+
+  describe "Rfc2822.to" $
+    it "parses hand-picked inputs correctly" $ do
+      parseTest to "To: =?ISO-8859-1?Q?Keld_J=F8rn_Simonsen?= <keld@dkuug.dk>\r\n" `shouldReturn` [NameAddr (Just "Keld J\248rn Simonsen") "keld@dkuug.dk"]
