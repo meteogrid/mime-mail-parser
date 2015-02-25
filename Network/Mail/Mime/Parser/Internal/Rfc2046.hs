@@ -16,7 +16,7 @@
 module Network.Mail.Mime.Parser.Internal.Rfc2046 where
 
 
-import Control.Applicative ((<*), (*>), (<|>), pure)
+import Control.Applicative ((<$>), (<*), (*>), (<|>), pure)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import Network.Mail.Mime.Parser.Internal.Common
@@ -31,10 +31,10 @@ multipart_body boundary = do
   let dash_boundary = "--" *> string boundary *> pure ()
       delimiter = crlf *> dash_boundary *> pure ()
       close_delimiter = delimiter *> "--" *> pure ()
-      sep = (close_delimiter >> transport_padding)
-        <|> (delimiter >> transport_padding >> crlf >> pure ())
+      sep = (close_delimiter <* transport_padding)
+        <|> (delimiter <* transport_padding >> crlf >> pure ())
   pr <- option "" (preamble <* crlf)
-  dash_boundary >> transport_padding <* crlf
+  dash_boundary <* transport_padding <* crlf
   parts <- many1 (body_part sep)
   ep <- option "" (crlf *> epilogue)
   return $ MultipartBody pr parts ep
@@ -42,15 +42,15 @@ multipart_body boundary = do
 body_part :: Parser () -> Parser Part
 body_part sep = do
   hs <- mime_part_headers
-  _ <- crlf
+  optional crlf
   bd <- case getBoundary hs of
     Just b -> multipart_body b <* sep
-    _      -> fmap (BinaryBody . S.pack) (manyTill anyChar sep)
+    _      -> binary_body sep
   return $ Part hs bd
 
-transport_padding :: Parser ()
-transport_padding = takeWhile isHorizontalSpace *> return ()
-
+binary_body :: Parser () -> Parser Body
+binary_body sep = BinaryBody . S.intercalate "\r"
+              <$> manyTill (takeWhile1 (/='\r') <|> "\r") sep
 
 preamble :: Parser ByteString
 preamble = discard_text

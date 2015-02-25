@@ -17,7 +17,7 @@ module Network.Mail.Mime.Parser.Internal.Rfc2045 where
 
 
 import Control.Applicative (many, pure, (<$>), (<*>), (<*), (*>), (<|>))
-import Data.Char (isAscii, toLower)
+import Data.Char (isAscii, chr, ord)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import Data.Monoid ((<>))
@@ -25,9 +25,10 @@ import Network.Mail.Mime.Parser.Internal.Common
 import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2234
 import Network.Mail.Mime.Parser.Internal.Rfc2822
+import Prelude hiding (takeWhile)
 
 attribute :: Parser ByteString
-attribute = tokenToLower
+attribute = fmap sToLower token
 
 composite_type :: Parser ByteString
 composite_type = fmap sToLower
@@ -108,9 +109,6 @@ token = takeWhile1 (\c -> isAscii c
                        && not (isSpace c || isNoWsCtl c || c `elem` tspecials))
 
 
-tokenToLower :: Parser ByteString
-tokenToLower = fmap sToLower token
-
 tspecials :: [Char]
 tspecials = "()<>@,;:\\\"/[]?="
 
@@ -146,8 +144,43 @@ mime_version :: Parser Field
 mime_version
   = header "Mime-Version" (MimeVersion <$> readIntN 1 <*> ("." *> readIntN 1))
 
---
--- Utils
---
-sToLower :: ByteString -> ByteString
-sToLower = S.map toLower
+
+quoted_printable :: Parser ByteString
+quoted_printable = do
+  l <- qp_line
+  ls <- many ((<>) <$> crlf <*> qp_line)
+  return $ l <> S.concat ls
+
+
+qp_line :: Parser ByteString
+qp_line = do
+  ls <- many (qp_segment <* transport_padding <* crlf)
+  l <- qp_part <* transport_padding
+  return $ S.concat ls <> l
+
+qp_part :: Parser ByteString
+qp_part = qp_section
+
+qp_segment :: Parser ByteString
+qp_segment = (<>) <$> qp_section <*> transport_padding <* "="
+
+qp_section :: Parser ByteString
+qp_section = do
+  ls <- many (transport_padding1 <|> ptextstring)
+  l <- option "" ptextstring
+  return $ S.concat ls <> l
+
+ptextstring :: Parser ByteString
+ptextstring = S.concat <$> many1 (hex_octet <|> takeWhile1 isSafeChar)
+
+isSafeChar :: Char -> Bool
+isSafeChar c = (ord c >= 33 && ord c <= 60) || (ord c >= 62 && ord c <= 126)
+
+hex_octet :: Parser ByteString
+hex_octet = S.singleton . chr <$> ("=" *> hexadecimal)
+
+transport_padding :: Parser ByteString
+transport_padding = takeWhile isHorizontalSpace
+
+transport_padding1 :: Parser ByteString
+transport_padding1 = takeWhile1 isHorizontalSpace

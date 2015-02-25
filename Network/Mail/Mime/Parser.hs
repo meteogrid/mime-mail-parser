@@ -17,7 +17,6 @@ module Network.Mail.Mime.Parser (
 ) where
 
 import Control.Applicative (pure, (<$>), (*>))
-import Control.Lens
 import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Common
 import Network.Mail.Mime.Parser.Internal.Rfc2822 (body)
@@ -29,9 +28,10 @@ message :: Parser Message
 message = do
   optional envelope
   f <- mime_message_headers
+  optional crlf
   b <- case getBoundary f of
-    Just b -> option (MultipartBody "" [] "") (crlf *> multipart_body b)
-    _      -> BinaryBody <$> option "" (crlf *> body)
+    Just b -> option (MultipartBody "" [] "") (multipart_body b)
+    _      -> BinaryBody <$> option "" body
   return (Message f b)
 
 envelope :: Parser ()

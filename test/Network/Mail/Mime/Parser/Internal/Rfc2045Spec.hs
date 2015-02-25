@@ -15,7 +15,6 @@ module Network.Mail.Mime.Parser.Internal.Rfc2045Spec ( main, spec ) where
 
 import Test.Hspec
 import Util
-import Data.ByteString.Char8 (ByteString)
 import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2045
 
@@ -37,13 +36,21 @@ spec = do
 
   describe "Rfc2045.content_type" $
     it "parses hand-picked inputs correctly" $ do
-      parseTest content_type "Content-Type: image/jpeg\r\n" `shouldReturn`
+      let parseTest' = parseTest content_type
+      parseTest' "Content-Type: image/jpeg\r\n" `shouldReturn`
         ContentType "image" "jpeg" []
-      parseTest content_type "Content-Type: text/plain; charset=utf-8\r\n"
+      parseTest' "Content-Type: text/plain; charset=utf-8\r\n"
         `shouldReturn` (ContentType "text" "plain" [Charset "utf-8"])
-      parseTest content_type "Content-Type: text/plain; charset = utf-8\r\n"
+      parseTest' "Content-Type: text/plain; charset = utf-8\r\n"
         `shouldReturn` (ContentType "text" "plain" [Charset "utf-8"])
-      parseTest content_type "Content-Type: text/plain; charset=utf-8; foo=bar\r\n"
+      parseTest' "Content-Type: text/plain; charset=utf-8; foo=bar\r\n"
         `shouldReturn` (ContentType "text" "plain" [Charset "utf-8", ContentTypeParm "foo" "bar"])
 
-      parseTest content_type "Content-Type: multipart/mixed; boundary=\"_----------=_142387904494050\"\r\n" `shouldReturn`(ContentType "multipart" "mixed" [Boundary "_----------=_142387904494050"])
+      parseTest' "Content-Type: multipart/mixed; boundary=\"_----------=_142387904494050\"\r\n" `shouldReturn`(ContentType "multipart" "mixed" [Boundary "_----------=_142387904494050"])
+
+  describe "Rfc2045.quoted_printable" $
+    it "parses hand-picked inputs correctly" $ do
+      let parseTest' = parseTest quoted_printable
+      parseTest' "Now's the time =\r\nfor all folk to come=\r\n to the aid of their country." `shouldReturn` "Now's the time for all folk to come to the aid of their country."
+      parseTest' "Now's the time\r\nfor all folk to come=\r\n to the aid of their country.\r\n" `shouldReturn` "Now's the time\r\nfor all folk to come to the aid of their country.\r\n"
+      parseTest' "Vilar=C3=B3" `shouldReturn` "Vilar\195\179"

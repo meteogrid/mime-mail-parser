@@ -87,16 +87,12 @@ module Network.Mail.Mime.Parser.Types (
 
   , _BinaryBody
   , _TextBody
+  , _Rfc822Body
   , _MultipartBody
-
-  -- |Utils
-  , getBoundary
-
 ) where
 
 import System.Time (CalendarTime)
 import Control.Lens
-import Control.Monad (join)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 
@@ -182,6 +178,7 @@ data Part
 data Body
   = BinaryBody    ByteString
   | TextBody      Text
+  | Rfc822Body    Message
   | MultipartBody {
         _mpPreamble :: ByteString
       , _mpParts    :: [Part]
@@ -232,14 +229,3 @@ makeLenses ''Part
 makePrisms ''ContentTypeParm
 makePrisms ''ContentDispositionType
 makePrisms ''ContentDispositionParm
-
-
---
--- Utils
---
-getBoundary :: [Field] -> Maybe ByteString
-getBoundary = join . headMay . concat . map (map (^?_Boundary) . (^.ctParms))
-
-headMay :: [a] -> Maybe a
-headMay []    = Nothing
-headMay (x:_) = Just x

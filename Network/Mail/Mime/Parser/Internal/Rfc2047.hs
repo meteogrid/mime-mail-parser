@@ -17,8 +17,8 @@
 module Network.Mail.Mime.Parser.Internal.Rfc2047 where
 
 
-import Control.Applicative (many, pure, (<$>), (<*>), (<*), (*>), (<|>))
-import Control.Exception (try, evaluate)
+import Control.Applicative (many, (<$>), (*>), (<|>))
+import Control.Exception (try)
 import Data.Char (chr, toLower)
 import Data.ByteString.Char8 (ByteString)
 import Data.Text (Text)
@@ -27,13 +27,9 @@ import qualified Data.Text.ICU.Convert as ICU
 import qualified Data.Text.ICU.Error as ICU
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as S
-import Data.Monoid ((<>))
 import Network.Mail.Mime.Parser.Internal.Common hiding (try)
 import System.IO.Unsafe (unsafePerformIO)
 import Prelude hiding (takeWhile)
-
-hex_octet :: Parser ByteString
-hex_octet = S.singleton . chr <$> ("=" *> hexadecimal)
 
 encoded_word :: Parser Text
 encoded_word = between "=?" "?=" $ do
@@ -48,6 +44,10 @@ qEncodedText :: String -> Parser Text
 qEncodedText charset
     = many (hex_octet <|> takeWhile1 (\c -> c/='=' && c/='?'))
   >>= either fail (return . T.replace "_" " ") . toUnicode charset . S.concat
+
+-- Copied from Rfc2045 to prevent circular dependency
+hex_octet :: Parser ByteString
+hex_octet = S.singleton . chr <$> ("=" *> hexadecimal)
 
 bEncodedText :: String -> Parser Text
 bEncodedText charset = do
