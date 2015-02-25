@@ -15,8 +15,6 @@ module Network.Mail.Mime.Parser.Internal.Rfc2046Spec ( main, spec ) where
 
 import Test.Hspec
 import Util
-import Data.ByteString.Char8 (ByteString)
-import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2046
 
 main :: IO ()

@@ -27,12 +27,15 @@ import Network.Mail.Mime.Parser.Internal.Rfc2046 (multipart_body)
 message :: Parser Message
 message = do
   optional envelope
-  f <- mime_message_headers
+  hs <- mime_message_headers
   optional crlf
-  b <- case getBoundary f of
-    Just b -> option (MultipartBody "" [] "") (multipart_body b)
-    _      -> BinaryBody <$> option "" body
-  return (Message f b)
+  bd <- case getContentType hs of
+    ContentType "multipart" _ ps ->
+      case getBoundary ps of
+        Just b -> multipart_body b
+        _      -> fail "multipart content with no boundary"
+    _ -> BinaryBody <$> option "" body
+  return (Message hs bd)
 
 envelope :: Parser ()
 envelope = "From " *> takeWhile1 (/='\r') *> crlf *> pure ()

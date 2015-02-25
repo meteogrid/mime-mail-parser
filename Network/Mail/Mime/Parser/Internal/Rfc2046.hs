@@ -19,11 +19,13 @@ module Network.Mail.Mime.Parser.Internal.Rfc2046 where
 import Control.Applicative ((<$>), (<*), (*>), (<|>), pure)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
+import qualified Data.ByteString.Base64 as B64
 import Network.Mail.Mime.Parser.Internal.Common
 import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2234
 import Network.Mail.Mime.Parser.Internal.Rfc2045
 import Network.Mail.Mime.Parser.Internal.Rfc2822
+import Network.Mail.Mime.Parser.Internal.Unicode
 import Prelude hiding (takeWhile)
 
 multipart_body :: ByteString -> Parser Body
@@ -43,14 +45,33 @@ body_part :: Parser () -> Parser Part
 body_part sep = do
   hs <- mime_part_headers
   optional crlf
-  bd <- case getBoundary hs of
-    Just b -> multipart_body b <* sep
-    _      -> binary_body sep
+  bd <- case getContentType hs of
+    ContentType "multipart" _ ps ->
+      case getBoundary ps of
+        Just b -> multipart_body b <* sep
+        _      -> fail "multipart content with no boundary"
+    ContentType "text" _ ps -> do
+      bd <- case getEncoding hs of
+                 QuotedPrintable -> qp_body sep
+                 Base64          -> do bd <- fmap B64.decode (binary_body sep)
+                                       either fail return bd
+                 _               -> binary_body sep
+      either fail (return . TextBody) $ toUnicode (S.unpack (getCharset ps)) bd
+    _ -> do
+      bd <- case getEncoding hs of
+              QuotedPrintable -> qp_body sep
+              Base64          -> do bd <- fmap B64.decode (binary_body sep)
+                                    either fail return bd
+              _               -> binary_body sep
+      return $ BinaryBody bd
   return $ Part hs bd
 
-binary_body :: Parser () -> Parser Body
-binary_body sep = BinaryBody . S.intercalate "\r"
+binary_body :: Parser () -> Parser ByteString
+binary_body sep = S.intercalate "\r"
               <$> manyTill (takeWhile1 (/='\r') <|> "\r") sep
+
+qp_body :: Parser () -> Parser ByteString
+qp_body sep = S.concat <$> manyTill quoted_printable sep
 
 preamble :: Parser ByteString
 preamble = discard_text

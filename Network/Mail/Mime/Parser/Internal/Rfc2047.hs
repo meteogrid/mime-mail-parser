@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {- |
    Module      :  Network.Mail.Mime.Parser.Internal.Rfc2047
    Copyright   :  (c) 2015 Alberto Valverde González
@@ -18,17 +17,14 @@ module Network.Mail.Mime.Parser.Internal.Rfc2047 where
 
 
 import Control.Applicative (many, (<$>), (*>), (<|>))
-import Control.Exception (try)
 import Data.Char (chr, toLower)
 import Data.ByteString.Char8 (ByteString)
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.ICU.Convert as ICU
-import qualified Data.Text.ICU.Error as ICU
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as S
-import Network.Mail.Mime.Parser.Internal.Common hiding (try)
-import System.IO.Unsafe (unsafePerformIO)
+import Network.Mail.Mime.Parser.Internal.Common
+import Network.Mail.Mime.Parser.Internal.Unicode
 import Prelude hiding (takeWhile)
 
 encoded_word :: Parser Text
@@ -55,14 +51,3 @@ bEncodedText charset = do
   case B64.decode s of
     Left e   -> fail e
     Right s' -> either fail return . toUnicode charset $ s'
-
-
-toUnicode :: String -> ByteString -> Either String Text
-toUnicode encoding str = unsafePerformIO $ do
-  eConverter <- tryICU $ ICU.open encoding (Just True)
-  return $ case eConverter of
-    Left _           -> Left $ "Invalid encoding: " ++ encoding
-    Right converter  -> Right $ ICU.toUnicode converter str
-
-tryICU :: IO a -> IO (Either ICU.ICUError a)
-tryICU = try

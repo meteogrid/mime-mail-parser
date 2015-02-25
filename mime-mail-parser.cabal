@@ -37,6 +37,7 @@ Library
                         Network.Mail.Mime.Parser.Internal.Rfc2234
                         Network.Mail.Mime.Parser.Internal.Rfc2822
                         Network.Mail.Mime.Parser.Internal.Common
+                        Network.Mail.Mime.Parser.Internal.Unicode
   Ghc-Options:          -Wall
 
 Test-Suite test

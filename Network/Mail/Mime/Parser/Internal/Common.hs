@@ -21,6 +21,7 @@ module Network.Mail.Mime.Parser.Internal.Common (
   , sToLower
   , getContentType
   , getBoundary
+  , getCharset
   , getEncoding
   , module Data.Attoparsec.ByteString.Char8
 ) where
@@ -31,7 +32,7 @@ import Data.Attoparsec.ByteString.Char8 hiding (isHorizontalSpace)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import Data.Char (toLower)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromMaybe)
 import Prelude hiding (take)
 import Network.Mail.Mime.Parser.Types
 
@@ -68,14 +69,28 @@ trim = between skipSpace skipSpace
 sToLower :: ByteString -> ByteString
 sToLower = S.map toLower
 
-getBoundary :: [Field] -> Maybe ByteString
-getBoundary = firstJust . concat . map (map (^?_Boundary) . (^.ctParms))
+getBoundary :: [ContentTypeParm] -> Maybe ByteString
+getBoundary = firstJust . map (^?_Boundary)
 
-getContentType :: [Field] -> Maybe Field
-getContentType = firstJust . map (fmap (review _ContentType) . (^?_ContentType))
+getCharset :: [ContentTypeParm] -> ByteString
+getCharset = fromMaybe defaultCharset . firstJust . map (^?_Charset)
 
-getEncoding :: [Field] -> Maybe Encoding
-getEncoding = firstJust . map (^?_ContentTransferEncoding)
+getContentType :: [Field] -> Field
+getContentType = fromMaybe defaultContentType
+               . firstJust . map (fmap (review _ContentType) . (^?_ContentType))
+
+getEncoding :: [Field] -> Encoding
+getEncoding = fromMaybe defaultEncoding
+            . firstJust . map (^?_ContentTransferEncoding)
+
+defaultEncoding :: Encoding
+defaultEncoding = Binary7Bit
+
+defaultCharset :: ByteString
+defaultCharset = "US-ASCII"
+
+defaultContentType :: Field
+defaultContentType = ContentType "text" "plain" [Charset defaultCharset]
 
 headMay :: [a] -> Maybe a
 headMay []    = Nothing
