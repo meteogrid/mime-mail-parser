@@ -16,11 +16,9 @@
 module Network.Mail.Mime.Parser.Internal.Rfc2046 where
 
 
-import Control.Applicative (pure, many, (<$>), (<*>), (<*), (*>), (<|>))
-import Data.Char (ord)
+import Control.Applicative ((<*), (*>), (<|>), pure)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
-import Data.Monoid ((<>))
 import Network.Mail.Mime.Parser.Internal.Common
 import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2234
@@ -28,20 +26,27 @@ import Network.Mail.Mime.Parser.Internal.Rfc2045
 import Network.Mail.Mime.Parser.Internal.Rfc2822
 import Prelude hiding (takeWhile)
 
-multipart_body :: ByteString -> Parser MultipartBody
+multipart_body :: ByteString -> Parser Body
 multipart_body boundary = do
   let dash_boundary = "--" *> string boundary *> pure ()
       delimiter = crlf *> dash_boundary *> pure ()
       close_delimiter = delimiter *> "--" *> pure ()
-      sep = (delimiter >> transport_padding >> crlf >> pure ())
-        <|> (close_delimiter >> transport_padding)
-      body_part = Part <$> mime_part_headers <*> (crlf *> part_body)
-      part_body = fmap S.pack (manyTill anyChar sep)
+      sep = (close_delimiter >> transport_padding)
+        <|> (delimiter >> transport_padding >> crlf >> pure ())
   pr <- option "" (preamble <* crlf)
   dash_boundary >> transport_padding <* crlf
-  parts <- many1 body_part
-  ep <- option "" (crlf <* epilogue)
+  parts <- many1 (body_part sep)
+  ep <- option "" (crlf *> epilogue)
   return $ MultipartBody pr parts ep
+
+body_part :: Parser () -> Parser Part
+body_part sep = do
+  hs <- mime_part_headers
+  _ <- crlf
+  bd <- case getBoundary hs of
+    Just b -> multipart_body b <* sep
+    _      -> fmap (BinaryBody . S.pack) (manyTill anyChar sep)
+  return $ Part hs bd
 
 transport_padding :: Parser ()
 transport_padding = takeWhile isHorizontalSpace *> return ()
@@ -54,4 +59,8 @@ epilogue :: Parser ByteString
 epilogue = discard_text
 
 discard_text :: Parser ByteString
-discard_text = takeWhile (\c -> isText c || c=='\r' || c=='\n')
+discard_text = do
+  ch <- peekChar
+  case ch of
+    Just '-' -> fail "discard_text"
+    _        -> takeWhile (\c -> isText c || c=='\r' || c=='\n')

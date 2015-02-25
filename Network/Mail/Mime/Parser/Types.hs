@@ -13,7 +13,7 @@
 module Network.Mail.Mime.Parser.Types (
   -- |Types
     Message (..)
-  , MultipartBody (..)
+  , Body (..)
   , Field (..)
   , Part (..)
   , ContentTypeParm (..)
@@ -25,7 +25,6 @@ module Network.Mail.Mime.Parser.Types (
   -- |Lenses
   , msgHeaders
   , msgBody
-  , msgMultipartBody
   , nameAddr_addr
   , nameAddr_name
   , cdType
@@ -44,8 +43,6 @@ module Network.Mail.Mime.Parser.Types (
   , mimeVerMinor
 
   -- |Prisms
-  , _Message
-  , _MultipartMessage
   , _OtherField
   , _From
   , _Sender
@@ -87,10 +84,19 @@ module Network.Mail.Mime.Parser.Types (
   , _ReadDate
   , _Size
   , _ContentDispositionParm
+
+  , _BinaryBody
+  , _TextBody
+  , _MultipartBody
+
+  -- |Utils
+  , getBoundary
+
 ) where
 
 import System.Time (CalendarTime)
 import Control.Lens
+import Control.Monad (join)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 
@@ -102,20 +108,10 @@ import Data.Text (Text)
 data Message
   = Message
       { _msgHeaders :: [Field]
-      , _msgBody    :: ByteString
-      }
-  | MultipartMessage
-      { _msgHeaders       :: [Field]
-      , _msgMultipartBody :: MultipartBody
+      , _msgBody    :: Body
       }
   deriving Show
 
-data MultipartBody
-  = MultipartBody {
-        _mpPreamble :: ByteString
-      , _mpParts    :: [Part]
-      , _mpEpilogue :: ByteString
-      } deriving Show
 
 data Field
   -- | RFC2822 fields
@@ -179,7 +175,17 @@ data NameAddr
 data Part
   = Part {
         _partHeaders :: [Field]
-      , _partBody    :: ByteString
+      , _partBody    :: Body
+      }
+  deriving Show
+
+data Body
+  = BinaryBody    ByteString
+  | TextBody      Text
+  | MultipartBody {
+        _mpPreamble :: ByteString
+      , _mpParts    :: [Part]
+      , _mpEpilogue :: ByteString
       }
   deriving Show
 
@@ -217,8 +223,8 @@ data Encoding
   deriving (Eq, Show)
 
 makeLenses ''Message
-makePrisms ''Message
-makeLenses ''MultipartBody
+makeLenses ''Body
+makePrisms ''Body
 makeLenses ''NameAddr
 makeLenses ''Field
 makePrisms ''Field
@@ -226,3 +232,14 @@ makeLenses ''Part
 makePrisms ''ContentTypeParm
 makePrisms ''ContentDispositionType
 makePrisms ''ContentDispositionParm
+
+
+--
+-- Utils
+--
+getBoundary :: [Field] -> Maybe ByteString
+getBoundary = join . headMay . concat . map (map (^?_Boundary) . (^.ctParms))
+
+headMay :: [a] -> Maybe a
+headMay []    = Nothing
+headMay (x:_) = Just x

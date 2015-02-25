@@ -27,7 +27,8 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
 import Network.Mail.Mime.Parser.Internal.Rfc2234 hiding (quoted_pair, quoted_string)
 import Network.Mail.Mime.Parser.Internal.Rfc2047 (encoded_word)
-import Network.Mail.Mime.Parser.Types (Message(..), Field(..), NameAddr(..))
+import Network.Mail.Mime.Parser.Types (
+  Message(..), Body(..), Field(..), NameAddr(..))
 import Network.Mail.Mime.Parser.Internal.Common
 import Prelude hiding (takeWhile)
 
@@ -576,7 +577,7 @@ rfc2822_message :: Parser Message
 rfc2822_message = do
   f <- rfc2822_fields
   b <- option "" (crlf *> body)
-  return (Message f b)
+  return (Message f (BinaryBody b))
 
 -- |A message body is just an unstructured sequence of characters.
 
