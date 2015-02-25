@@ -61,10 +61,11 @@ content_encoding
   = ContentTransferEncoding <$> header "Content-Transfer-Encoding" mechanism
 
 mechanism :: Parser Encoding
-mechanism = "7bit"            *> pure Binary7Bit
-       <|> "8bit"             *> pure Binary8Bit
-       <|> "binary"           *> pure Binary
-       <|> "quoted-printable" *> pure QuotedPrintable
+mechanism = stringCI "7bit"             *> pure Binary7Bit
+       <|>  stringCI "8bit"             *> pure Binary8Bit
+       <|>  stringCI "binary"           *> pure Binary
+       <|>  stringCI "quoted-printable" *> pure QuotedPrintable
+       <|>  stringCI "base64"           *> pure Base64
        <|> (OtherEncoding <$> x_token)
        <|> (OtherEncoding <$> ietf_token)
 
@@ -134,11 +135,6 @@ mime_message_headers = many mime_message_header
 mime_message_header :: Parser Field
 mime_message_header = entity_header <|> rfc2822_field <|> mime_version
 
-mime_part_headers :: Parser [Field]
-mime_part_headers = many mime_part_header
-
-mime_part_header :: Parser Field
-mime_part_header = entity_header <|> rfc2822_field
 
 mime_version :: Parser Field
 mime_version
@@ -148,7 +144,7 @@ mime_version
 quoted_printable :: Parser ByteString
 quoted_printable = do
   l <- qp_line
-  ls <- many ((<>) <$> crlf <*> qp_line)
+  ls <- many ((S.cons '\n') <$> (crlf *> qp_line))
   return $ l <> S.concat ls
 
 

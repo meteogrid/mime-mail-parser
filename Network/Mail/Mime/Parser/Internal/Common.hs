@@ -23,6 +23,8 @@ module Network.Mail.Mime.Parser.Internal.Common (
   , getBoundary
   , getCharset
   , getEncoding
+  , getAttachments
+  , getFilename
   , module Data.Attoparsec.ByteString.Char8
 ) where
 
@@ -79,10 +81,30 @@ getContentType :: [Field] -> Field
 getContentType = fromMaybe defaultContentType
                . firstJust . map (fmap (review _ContentType) . (^?_ContentType))
 
+getContentDisposition :: [Field] -> Maybe Field
+getContentDisposition
+  = firstJust
+  . map (fmap (review _ContentDisposition) . (^?_ContentDisposition))
+
 getEncoding :: [Field] -> Encoding
 getEncoding = fromMaybe defaultEncoding
             . firstJust . map (^?_ContentTransferEncoding)
 
+getAttachments :: Body -> [Part]
+getAttachments body
+  = case body of
+      MultipartBody _ ps _ -> concat $ map go ps
+      _ -> []
+  where go p = case p^.partBody of
+                 b@MultipartBody{} -> getAttachments b
+                 _ -> case getContentDisposition (p^.partHeaders) of
+                        Just (ContentDisposition Attachment _) -> [p]
+                        _                                      -> []
+                  
+
+getFilename :: [Field] -> Maybe ByteString
+getFilename = firstJust . map (^?_Filename) . concat . map (^.cdParms)
+ 
 defaultEncoding :: Encoding
 defaultEncoding = Binary7Bit
 
