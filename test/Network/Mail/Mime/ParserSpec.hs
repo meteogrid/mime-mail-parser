@@ -13,10 +13,11 @@
 module Network.Mail.Mime.ParserSpec ( main, spec ) where
 
 import Test.Hspec
+import Control.Applicative ((<*))
 import Control.Lens
 import Control.Monad (forM_)
 import Data.ByteString.Char8 (ByteString, readFile)
-import Data.Attoparsec.ByteString.Char8 (parseOnly)
+import Data.Attoparsec.ByteString.Char8 (parseOnly, endOfInput)
 import Network.Mail.Mime.Parser
 import Prelude hiding (readFile)
 
@@ -47,7 +48,7 @@ fixture_spec :: Fixture -> Spec
 fixture_spec Fixture{..} = describe mailId $ do
   email <- runIO $ readFile $ "test/fixtures/" ++ mailId
   let tryParse act
-        = case parseOnly message email of
+        = case parseOnly (message <* endOfInput) email of
             Left err -> expectationFailure $
                           "Could not parse " ++ mailId ++ ": " ++ err
             Right p -> act p

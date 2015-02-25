@@ -94,9 +94,9 @@ specials        = oneOf "()<>[]:;@,.\\\""   <?> "one of ()<>[]:;@,.\\\""
 -- backslash and the actual content.
 
 quoted_pair     :: Parser ByteString
-quoted_pair     = try obs_qp <|> do {_ <- char '\\';
-                                     r <- text;
-                                     return (S.pack ['\\',r])}
+quoted_pair     = obs_qp <|> do {_ <- char '\\';
+                                 r <- text;
+                                 return (S.pack ['\\',r])}
                   <?> "quoted pair"
 
 

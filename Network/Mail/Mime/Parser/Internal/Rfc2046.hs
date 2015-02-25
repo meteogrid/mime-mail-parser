@@ -16,7 +16,8 @@
 module Network.Mail.Mime.Parser.Internal.Rfc2046 where
 
 
-import Control.Applicative (pure, (<$>), (<*>), (<*), (*>))
+import Control.Applicative (pure, many, (<$>), (<*>), (<*), (*>), (<|>))
+import Data.Char (ord)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import Data.Monoid ((<>))
@@ -25,29 +26,26 @@ import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2234
 import Network.Mail.Mime.Parser.Internal.Rfc2045
 import Network.Mail.Mime.Parser.Internal.Rfc2822
+import Prelude hiding (takeWhile)
 
 multipart_body :: ByteString -> Parser MultipartBody
 multipart_body boundary = do
-  let dash_boundary   = "--" *> string boundary *> pure ()
-      delimiter       = crlf *> dash_boundary *> pure ()
+  let dash_boundary = "--" *> string boundary *> pure ()
+      delimiter = crlf *> dash_boundary *> pure ()
       close_delimiter = delimiter *> "--" *> pure ()
-  p <- option "" (preamble <* crlf)
+      sep = (delimiter >> transport_padding >> crlf >> pure ())
+        <|> (close_delimiter >> transport_padding)
+      body_part = Part <$> mime_part_headers <*> (crlf *> part_body)
+      part_body = fmap S.pack (manyTill anyChar sep)
+  pr <- option "" (preamble <* crlf)
   dash_boundary >> transport_padding <* crlf
-  parts <- body_part `sepBy1` (delimiter >> transport_padding >> crlf)
-  close_delimiter >> transport_padding
-  e <- option "" (crlf <* epilogue)
-  return $ MultipartBody p parts e
+  parts <- many1 body_part
+  ep <- option "" (crlf <* epilogue)
+  return $ MultipartBody pr parts ep
 
 transport_padding :: Parser ()
-transport_padding = option "" lwsp *> return ()
+transport_padding = takeWhile isHorizontalSpace *> return ()
 
-body_part :: Parser Part
-body_part
-    = Part
-  <$> mime_part_headers
-  <*> option "" (
-        crlf *> (fmap (S.intercalate "\r\n") (takeWhile1 (/='\r') `sepBy` crlf))
-        )
 
 preamble :: Parser ByteString
 preamble = discard_text
@@ -56,7 +54,4 @@ epilogue :: Parser ByteString
 epilogue = discard_text
 
 discard_text :: Parser ByteString
-discard_text = do
-  ls <- option "" atextstring `sepBy` crlf
-  l <- option "" atextstring
-  return $ S.concat ls <> l
+discard_text = takeWhile (\c -> isText c || c=='\r' || c=='\n')
