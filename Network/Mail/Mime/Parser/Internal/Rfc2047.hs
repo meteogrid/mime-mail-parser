@@ -16,11 +16,10 @@
 module Network.Mail.Mime.Parser.Internal.Rfc2047 where
 
 
-import Control.Applicative (many, (<$>), (*>), (<|>))
+import Control.Applicative (many, pure, (<$>), (*>), (<|>))
 import Data.Char (chr, toLower)
 import Data.ByteString.Char8 (ByteString)
 import Data.Text (Text)
-import qualified Data.Text as T
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as S
 import Network.Mail.Mime.Parser.Internal.Common
@@ -38,8 +37,11 @@ encoded_word = named "encoded_word" . between "=?" "?=" $ do
 
 qEncodedText :: String -> Parser Text
 qEncodedText charset
-    = many (hex_octet <|> takeWhile1 (\c -> c/='=' && c/='?'))
-  >>= either fail (return . T.replace "_" " ") . toUnicode charset . S.concat
+    = many (hex_octet
+        <|> (char '_' *> pure " ")
+        <|> takeWhile1 (\c -> c/='=' && c/='?' && c/='_')
+        )
+  >>= either fail return . toUnicode charset . S.concat
 
 -- Copied from Rfc2045 to prevent circular dependency
 hex_octet :: Parser ByteString

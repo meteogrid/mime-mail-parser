@@ -68,6 +68,3 @@ size_parm :: Parser ContentDispositionParm
 size_parm
     = Size . snd
   <$> someparameter (stringCI "size") decimal
-
-quoted :: Parser a -> Parser a
-quoted = between "\"" "\""

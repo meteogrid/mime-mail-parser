@@ -44,7 +44,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
       , htmlMatches = [Count 1 "<div dir=\"ltr\"><br></div>"]
       , attachmentMatches = [
           AttachmentMatch {
-              filename           = "attach01"
+              filename           = Just "attach01"
             , size               = 2
             , fileMatches        = [BinCount 1 "a"]
             , contentType        = "application"
@@ -65,7 +65,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
       , htmlMatches = [Count 1 "<div dir=\"ltr\"><br></div>"]
       , attachmentMatches = [
           AttachmentMatch {
-              filename           = "attach02"
+              filename           = Just "attach02"
             , size               = 2229
             , fileMatches        = [BinCount 8 "Lorem ipsum"]
             , contentType        = "application"
@@ -85,7 +85,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
       , htmlMatches = [Count 1 "<div dir=\"ltr\"><br></div>"]
       , attachmentMatches = [
           AttachmentMatch {
-              filename           = "attach03"
+              filename           = Just "attach03"
             , size               = 13369
             , fileMatches        = [BinCount 48 "dolor sit amet"]
             , contentType        = "application"
@@ -105,7 +105,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
       , htmlMatches = [Count 1 "<div dir=\"ltr\"><br></div>"]
       , attachmentMatches = [
           AttachmentMatch {
-              filename           = "attach04"
+              filename           = Just "attach04"
             , size               = 817938
             , fileMatches        = [BinCount 242 "Phasellus scelerisque"]
             , contentType        = "application"
@@ -125,7 +125,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
       , htmlMatches = [Count 1 "<div dir=\"ltr\"><br></div>"]
       , attachmentMatches = [
           AttachmentMatch {
-              filename           = "attach05"
+              filename           = Just "attach05"
             , size               = 1635877
             , fileMatches        = [BinCount 484 "Aenean ultrices"]
             , contentType        = "application"
@@ -145,7 +145,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
       , htmlMatches = [Count 1 "<div dir=\"ltr\"><br></div>"]
       , attachmentMatches = [
           AttachmentMatch {
-              filename           = "attach06"
+              filename           = Just "attach06"
             , size               = 3271754
             , fileMatches        = [BinCount 968 "lectus ac leo ullamcorper"]
             , contentType        = "application"
@@ -165,7 +165,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
       , htmlMatches = [Count 1 "<div dir=\"ltr\"><br></div>"]
       , attachmentMatches = [
           AttachmentMatch {
-              filename           = "attach02"
+              filename           = Just "attach02"
             , size               = 2229
             , fileMatches        = [BinCount 4 "facilisis"]
             , contentType        = "application"
@@ -187,7 +187,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
           Count 1 "<table background=\"cid:4c837ed463ad29c820668e835a270e8a.jpg\" width=\"100%\">"]
       , attachmentMatches = [
           AttachmentMatch {
-              filename       = "logo.jpg"
+              filename       = Just "logo.jpg"
             , size           = 2695
             , fileMatches    = []
             , contentType    = "image"
@@ -195,7 +195,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
             , contentDisposition = Just Inline
             },
           AttachmentMatch {
-              filename       = "background.jpg"
+              filename       = Just "background.jpg"
             , size           = 18255
             , fileMatches    = []
             , contentType    = "image"
@@ -203,7 +203,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
             , contentDisposition = Just Inline
             },
           AttachmentMatch {
-              filename       = "attachment.txt"
+              filename       = Just "attachment.txt"
             , size           = 2229
             , fileMatches    = [Count 4 "Sed pulvinar"]
             , contentType    = "text"
@@ -217,10 +217,91 @@ spec = parallel . sequence_ . map fixture_spec $ [
       , expectedHeaders = [
             From [NameAddr (Just "Ogone") "noreply@ogone.com"]
           , To [(NameAddr Nothing "info@testsite.com")]
-          , Subject "Ogone NIEUWE order Maurits PAYID: 951597484 / orderID: 456123 / status: 5"
+          -- , Subject "Ogone NIEUWE order Maurits PAYID: 951597484 / orderID: 456123 / status: 5"  FIXME
           ]
       , textMatches = [Count 1 "951597484"]
       }
+  , fixture {
+        mailId          = "m0010"
+      , expectedHeaders = [
+            From [NameAddr (Just "Name") "name@company.com"]
+          , To [(NameAddr Nothing "name@company2.com")]
+          , Subject "Mail de 800ko without filename"
+          ]
+      , textMatches = [Match "\n"]
+      , htmlMatches = [Count 1 "<div dir=\"ltr\"><br></div>"]
+      , attachmentMatches = [
+          AttachmentMatch {
+              filename       = Nothing
+            , size           = 817938
+            , fileMatches    = [BinCount 726 "Suspendisse"]
+            , contentType    = "application"
+            , contentSubtype = "octet-stream"
+            , contentDisposition = Just Attachment
+            }
+          ]
+      }
+  , fixture {
+        mailId          = "m0011"
+      , expectedHeaders = [
+            From [NameAddr (Just "Name") "name@company.com"]
+          , To [(NameAddr (Just "Name") "name@company.com")]
+          , Subject "Hello World !"
+          ]
+      , textMatches = [Count 1 "This is a text body"]
+      , attachmentMatches = [
+          AttachmentMatch {
+              filename       = Just "file.txt"
+            , size           = 29
+            , fileMatches    = [Count 1 "This is a file"]
+            , contentType    = "text"
+            , contentSubtype = "plain"
+            , contentDisposition = Just Attachment
+            }
+          ]
+      }
+  , fixture {
+        mailId          = "m0012"
+      , expectedHeaders = [
+            From [NameAddr (Just "Name") "name@company.com"]
+          , To [(NameAddr (Just "Name") "name@company.com")]
+          , Subject "Hello World !"
+          ]
+      , textMatches = [Count 1 "This is a text body"]
+      , attachmentMatches = [
+          AttachmentMatch {
+              filename       = Just "file.txt"
+            , size           = 29
+            , fileMatches    = [Count 1 "This is a file"]
+            , contentType    = "text"
+            , contentSubtype = "plain"
+            , contentDisposition = Just Attachment
+            }
+          ]
+      }
+  {- FIXME
+  , fixture {
+        mailId          = "m0013"
+      , expectedHeaders = [
+            From [NameAddr (Just "NAME Firstname")
+                           "firstname.name@groupe-company.com"]
+          , To [(NameAddr (Just "paul.dupont@company.com")
+                          "paul.dupont@company.com")]
+          , Subject "50032266 CAR 11_MNPA00A01_9PTX_H00 ATT N° 1467829. pdf"
+          ]
+      , textMatches = [Count 1 "Superviseur de voitures"]
+      , attachmentMatches = [
+          AttachmentMatch {
+              filename       = Just "50032266 CAR 11_MNPA00A01_9PTX_H00 ATT N° 1467829.pdf"
+            , size           = 10
+            , fileMatches    = []
+            , contentType    = "application"
+            , contentSubtype = "pdf"
+            , contentDisposition = Just Attachment
+            }
+          ]
+      }
+  -}
   ]
 
 parseIncrementally :: Parser a -> ByteString -> Either String a
@@ -259,14 +340,17 @@ fixture_spec Fixture{..} = parallel $ describe mailId $ do
 
       textMatchSpec stype m = it (show stype ++ " body matches " ++ show m) $
         tryParse $ \parsed -> do
-          case textBody stype parsed of
+          case getTextBody stype parsed of
             Just b -> checkMatch b m
             _      -> expectationFailure $ "email has no "++ show stype++" body"
 
   -- Check for expected headers
   forM_ expectedHeaders $ \h -> 
     it ("has expected header " ++ show h) $ tryParse $ \parsed ->
-      (h `elem` parsed^.msgHeaders) `shouldBe` True
+      if h `elem` parsed^.msgHeaders
+        then return ()
+        else expectationFailure $ concat ["Missing header: ", show h, " in ",
+                                          show (parsed^.msgHeaders)]
   
   -- Check for Matches on text body
   forM_ textMatches $ textMatchSpec "plain"
@@ -283,7 +367,7 @@ fixture_spec Fixture{..} = parallel $ describe mailId $ do
                       TextBody   t -> Just . fromIntegral $ T.length t
                       BinaryBody s -> Just . fromIntegral $ S.length s
                       _            -> Nothing 
-        getFilename (atch^.partHeaders) `shouldBe` Just (filename a)
+        getFilename (atch^.partHeaders) `shouldBe` filename a
         size' `shouldBe` Just (size a)
         let ContentType ct cst _ = getContentType (atch^.partHeaders)
         let mCd = getContentDisposition (atch^.partHeaders)
@@ -317,18 +401,6 @@ binCount a b = go b 0
                     (_,c') | S.null c' -> n
                     (_,c')             -> go (S.tail c') (n+1)
 
-textBody :: ByteString -> Message -> Maybe Body
-textBody subtype m = go (m^.msgHeaders) (m^.msgBody)
-  where
-    go fs b
-      = case b of
-          MultipartBody _ ps _ ->
-            firstJust . map (\p -> go (p^.partHeaders) (p^.partBody)) $ ps
-          TextBody{} -> 
-            case getContentType fs of
-              ContentType "text" st _ | st==subtype -> Just b
-              _ -> Nothing
-          _ -> Nothing
                     
             
 
@@ -353,7 +425,7 @@ data Match
 
 data AttachmentMatch
   = AttachmentMatch {
-        filename           :: ByteString
+        filename           :: Maybe ByteString
       , size               :: Integer
       , fileMatches        :: [Match]
       , contentType        :: ByteString

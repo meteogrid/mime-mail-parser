@@ -110,7 +110,7 @@ fws :: Parser ByteString
 fws = S.concat <$> many1 (choice [blanks, linebreak])
   where
     blanks      = takeWhile1 isHorizontalSpace
-    linebreak   = try $ do { r1 <- crlf; r2 <- blanks; return (r1 <> r2) }
+    linebreak   = crlf *> blanks *> pure ""
 
 -- |Match any non-whitespace, non-control character except for \"@(@\",
 -- \"@)@\", and \"@\\@\". This is used to describe the legal content of
@@ -479,7 +479,7 @@ group           = do _ <- display_name
 -- |Parse and return a 'phrase'.
 
 display_name    :: Parser Text
-display_name    = fmap T.unwords phrase
+display_name    = fmap T.unwords (quoted phrase <|> phrase)
                   <?> "display name"
 
 -- |Parse a list of 'mailbox' addresses, every two addresses being

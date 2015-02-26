@@ -20,12 +20,14 @@ module Network.Mail.Mime.Parser.Internal.Common (
   , isEndOfLine
   , readIntN
   , named
+  , quoted
   , sToLower
   , getContentType
   , getBoundary
   , getCharset
   , getEncoding
   , getAttachments
+  , getTextBody
   , getFilename
   , getContentDisposition
   , firstJust
@@ -38,7 +40,7 @@ import Data.Attoparsec.ByteString.Char8 hiding (isHorizontalSpace, isEndOfLine)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import Data.Char (toLower)
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, isJust)
 import Prelude hiding (take)
 import Network.Mail.Mime.Parser.Types
 
@@ -73,6 +75,8 @@ trim = between skipSpace skipSpace
 named :: String -> Parser a -> Parser a
 named = flip (<?>)
 
+quoted :: Parser a -> Parser a
+quoted = between "\"" "\""
 
 --
 -- Utils
@@ -109,8 +113,32 @@ getAttachments body
              ContentType "multipart" "alternative" _ -> []
              ContentType "multipart" "mixed" _ -> getAttachments (p^.partBody)
              ContentType "multipart" _       _ -> getAttachments (p^.partBody)
-             _ -> [p]
+             _ | isAttachment (p^.partHeaders) -> [p]
+             _ -> []
                   
+isAttachment :: [Field] -> Bool
+isAttachment hs = dispositionMatches || hasName
+  where
+    dispositionMatches
+      = case getContentDisposition hs of
+          Just (ContentDisposition Attachment _) -> True
+          Just (ContentDisposition Inline     _) -> True
+          _                                      -> False
+    hasName = isJust (getFilename hs)
+
+getTextBody :: ByteString -> Message -> Maybe Body
+getTextBody subtype m = go (m^.msgHeaders) (m^.msgBody)
+  where
+    go fs b
+      = case b of
+          MultipartBody _ ps _ ->
+            firstJust . map (\p -> go (p^.partHeaders) (p^.partBody)) $ ps
+          TextBody{} -> 
+            case getContentType fs of
+              ContentType "text" st _
+                | st==subtype && not (isAttachment fs) -> Just b
+              _ -> Nothing
+          _ -> Nothing
 
 getFilename :: [Field] -> Maybe ByteString
 getFilename fs

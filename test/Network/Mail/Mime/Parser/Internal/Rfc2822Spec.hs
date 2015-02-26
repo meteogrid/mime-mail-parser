@@ -59,7 +59,7 @@ spec = do
     it "consumes leading whitespace" $
       parseTest subject "Subject: foo\r\n" `shouldReturn` "foo"
     it "parses hand-picked inputs correctly" $
-      parseTest subject "Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=\r\n  =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg==?=\r\n" `shouldReturn` "If you can read this yo\r\n  u understand the example."
+      parseTest subject "Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=\r\n  =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg==?=\r\n" `shouldReturn` "If you can read this you understand the example."
 
   describe "Rfc2822.comment" $
     it "consumes leading whitespace" $
@@ -201,7 +201,8 @@ spec = do
       parseIdemTest addr_spec "\"test\\\rblah\"@example.com" -- Quoted string specifically excludes carriage returns unless escaped
       parseIdemTest addr_spec "\"test\\blah\"@example.com" -- Any character can be escaped in a quoted string
       parseIdemTest addr_spec "\"test\\test\"@example.com" -- Any character can be escaped in a quoted string
-      parseIdemTest addr_spec "\"test\r\n blah\"@example.com" -- This is a valid quoted string with folding white space
+      parseTest addr_spec "\"test\r\n blah\"@example.com"
+        `shouldReturn` "\"testblah\"@example.com"-- This is a valid quoted string with folding white space
       parseIdemTest addr_spec "_Yosemite.Sam@example.com"
       parseIdemTest addr_spec "_somename@example.com"
       parseTest addr_spec "a(a(b(c)d(e(f))g)h(i)j)@example.com" `shouldReturn` "a@example.com"

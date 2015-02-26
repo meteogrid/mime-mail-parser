@@ -23,11 +23,6 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "Rfc2046.discard_text" $
-    it "parses hand-picked inputs correctly" $ do
-      parseIdemTest discard_text "foo bar\r\nzoo car"
-      parseIdemTest discard_text "foo bar\r\nzoo car\r\n"
-
   describe "Rfc2046.binary_body" $ do
     let parseTest' = parseTest $ binary_body endOfInput
     it "parses hand-picked inputs correctly" $ do
