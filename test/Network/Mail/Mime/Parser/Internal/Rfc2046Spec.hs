@@ -16,6 +16,7 @@ module Network.Mail.Mime.Parser.Internal.Rfc2046Spec ( main, spec ) where
 import Test.Hspec
 import Util
 import Network.Mail.Mime.Parser.Internal.Rfc2046
+import Network.Mail.Mime.Parser.Internal.Common (endOfInput)
 
 main :: IO ()
 main = hspec spec
@@ -24,6 +25,20 @@ spec :: Spec
 spec = do
   describe "Rfc2046.discard_text" $
     it "parses hand-picked inputs correctly" $ do
-      parseIdemTest discard_text ""
       parseIdemTest discard_text "foo bar\r\nzoo car"
       parseIdemTest discard_text "foo bar\r\nzoo car\r\n"
+
+  describe "Rfc2046.binary_body" $ do
+    let parseTest' = parseTest $ binary_body endOfInput
+    it "parses hand-picked inputs correctly" $ do
+      parseTest' "foo\r\nbar\r\n" `shouldReturn` "foobar"
+      parseTest' "\r\nfoo\r\nbar\r\n" `shouldReturn` "foobar"
+      parseTest' "\r\n\r\n" `shouldReturn` ""
+      parseTest' "" `shouldReturn` ""
+
+  describe "Rfc2046.binary_text_body" $ do
+    let parseTest' = parseTest $ binary_text_body endOfInput
+    it "parses hand-picked inputs correctly" $ do
+      parseTest' "foo\r\nbar\r\n" `shouldReturn` "foo\nbar\n"
+      parseTest' "\r\n\r\n" `shouldReturn` "\n\n"
+      parseTest' "" `shouldReturn` ""

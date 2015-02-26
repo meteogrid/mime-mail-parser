@@ -17,6 +17,7 @@ module Network.Mail.Mime.Parser.Internal.Common (
   , optional
   , oneOf
   , isHorizontalSpace
+  , isEndOfLine
   , readIntN
   , named
   , sToLower
@@ -27,12 +28,13 @@ module Network.Mail.Mime.Parser.Internal.Common (
   , getAttachments
   , getFilename
   , getContentDisposition
+  , firstJust
   , module Data.Attoparsec.ByteString.Char8
 ) where
 
 import Control.Applicative ((*>), (<*), (<|>))
 import Control.Lens hiding (noneOf)
-import Data.Attoparsec.ByteString.Char8 hiding (isHorizontalSpace)
+import Data.Attoparsec.ByteString.Char8 hiding (isHorizontalSpace, isEndOfLine)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import Data.Char (toLower)
@@ -61,6 +63,9 @@ oneOf = satisfy . inClass
 
 isHorizontalSpace :: Char -> Bool
 isHorizontalSpace c = c==' ' || c=='\t'
+
+isEndOfLine :: Char -> Bool
+isEndOfLine c = c=='\r' || c=='\n'
 
 trim :: Parser a -> Parser a
 trim = between skipSpace skipSpace
@@ -101,8 +106,9 @@ getAttachments body
       _ -> []
   where
     go p = case getContentType (p^.partHeaders) of
-             ContentType "multipart" "mixed" _ -> getAttachments (p^.partBody)
              ContentType "multipart" "alternative" _ -> []
+             ContentType "multipart" "mixed" _ -> getAttachments (p^.partBody)
+             ContentType "multipart" _       _ -> getAttachments (p^.partBody)
              _ -> [p]
                   
 

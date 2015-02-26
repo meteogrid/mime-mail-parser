@@ -17,7 +17,6 @@
 module Network.Mail.Mime.ParserSpec ( main, spec ) where
 
 import Test.Hspec
-import Control.Applicative ((<*))
 import Control.Lens
 import Control.Monad (forM_)
 import Data.Text (Text)
@@ -25,11 +24,9 @@ import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Data.ByteString.Char8 (ByteString, readFile)
 import qualified Data.ByteString.Char8 as S
-import Data.List (find)
 import Network.Mail.Mime.Parser
 import Network.Mail.Mime.Parser.Internal.Common
 import Prelude hiding (readFile)
-import Debug.Trace (traceShow)
 
 main :: IO ()
 main = hspec spec
@@ -185,7 +182,9 @@ spec = parallel . sequence_ . map fixture_spec $ [
           , Subject "Testing MIME E-mail composing with cid"
           ]
       , textMatches = [Count 1 "Please use an HTML capable mail program to read"]
-      , htmlMatches = [Count 1 "<center><h1>Testing MIME E-mail composing with cid</h1></center>"]
+      , htmlMatches = [
+          Count 1 "<center><h1>Testing MIME E-mail composing with cid</h1></center>",
+          Count 1 "<table background=\"cid:4c837ed463ad29c820668e835a270e8a.jpg\" width=\"100%\">"]
       , attachmentMatches = [
           AttachmentMatch {
               filename       = "logo.jpg"
@@ -194,13 +193,38 @@ spec = parallel . sequence_ . map fixture_spec $ [
             , contentType    = "image"
             , contentSubtype = "gif"
             , contentDisposition = Just Inline
+            },
+          AttachmentMatch {
+              filename       = "background.jpg"
+            , size           = 18255
+            , fileMatches    = []
+            , contentType    = "image"
+            , contentSubtype = "gif"
+            , contentDisposition = Just Inline
+            },
+          AttachmentMatch {
+              filename       = "attachment.txt"
+            , size           = 2229
+            , fileMatches    = [Count 4 "Sed pulvinar"]
+            , contentType    = "text"
+            , contentSubtype = "plain"
+            , contentDisposition = Just Attachment
             }
           ]
+      }
+  , fixture {
+        mailId          = "m0009"
+      , expectedHeaders = [
+            From [NameAddr (Just "Ogone") "noreply@ogone.com"]
+          , To [(NameAddr Nothing "info@testsite.com")]
+          , Subject "Ogone NIEUWE order Maurits PAYID: 951597484 / orderID: 456123 / status: 5"
+          ]
+      , textMatches = [Count 1 "951597484"]
       }
   ]
 
 parseIncrementally :: Parser a -> ByteString -> Either String a
-parseIncrementally p bs = go ls r 0
+parseIncrementally p bs = go ls r (0 :: Int)
   where
     (l:ls) = (++[""]) . map (<>"\n") . S.lines $ bs 
     r      = parse p l
@@ -276,7 +300,12 @@ checkMatch :: Body -> Match -> Expectation
 checkMatch b m
   = case (b, m) of
       (TextBody t, Match s)        -> t `shouldBe` s
-      (TextBody t, Count n s)      -> T.count s t `shouldBe` n
+      (TextBody t, Count n s) ->
+        let n' = T.count s t
+        in if n' == n
+           then return ()
+           else expectationFailure $ concat [
+              show n', "/=", show n, ":", show t]
       (BinaryBody t, BinMatch s)   -> t `shouldBe` s
       (BinaryBody t, BinCount n s) -> binCount s t `shouldBe` n
       _                            -> expectationFailure $
@@ -289,21 +318,17 @@ binCount a b = go b 0
                     (_,c')             -> go (S.tail c') (n+1)
 
 textBody :: ByteString -> Message -> Maybe Body
-textBody subtype m
-  = case m^.msgBody of
-      MultipartBody _ (x:_) _ ->
-        case (getContentType (x^.partHeaders), x^.partBody) of
-          (ContentType "multipart" "alternative" _, MultipartBody _ ps _) ->
-            fmap (\p -> p^.partBody) (find isTextPart ps)
-          (ContentType "text" st _, t) | st==subtype -> Just t
-          _ -> Nothing
-      _ -> Nothing
-
+textBody subtype m = go (m^.msgHeaders) (m^.msgBody)
   where
-    isTextPart :: Part -> Bool
-    isTextPart p = case getContentType (p^.partHeaders) of
-                     ContentType "text" st _ | st==subtype -> True
-                     _ -> False
+    go fs b
+      = case b of
+          MultipartBody _ ps _ ->
+            firstJust . map (\p -> go (p^.partHeaders) (p^.partBody)) $ ps
+          TextBody{} -> 
+            case getContentType fs of
+              ContentType "text" st _ | st==subtype -> Just b
+              _ -> Nothing
+          _ -> Nothing
                     
             
 

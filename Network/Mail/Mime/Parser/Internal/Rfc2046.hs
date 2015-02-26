@@ -29,18 +29,18 @@ import Network.Mail.Mime.Parser.Internal.Rfc2183
 import Network.Mail.Mime.Parser.Internal.Unicode
 import Prelude hiding (takeWhile)
 
-multipart_body :: ByteString -> Parser Body
-multipart_body boundary = named "multipart_body" $ do
+multipart_body :: ByteString -> Parser () -> Parser Body
+multipart_body boundary endMarker = named "multipart_body" $ do
   let dash_boundary = "--" *> string boundary *> pure () <?> "dash_boundary"
       delimiter = crlf *> dash_boundary *> pure ()       <?> "delimiter"
       close_delimiter = delimiter *> "--" *> pure ()     <?> "close_delimiter"
       sep = (close_delimiter <* transport_padding)
         <|> (delimiter <* transport_padding >> crlf >> pure ())
         <?> "part sep"
-  pr <- option "" (preamble <* crlf) <?> "preamble"
-  dash_boundary <* transport_padding <* crlf <?> "initial boundary"
+  pr <- binary_text_body dash_boundary <?> "preamble"
+  _ <- transport_padding <* crlf
   parts <- many1 (body_part sep) <?> "parts"
-  ep <- option "" (crlf *> epilogue) <?> "epilogue"
+  ep <- binary_text_body endMarker <?> "epilogue"
   return $ MultipartBody pr parts ep
 
 mime_part_headers :: Parser [Field]
@@ -56,7 +56,7 @@ body_part sep = named "body_part" $ do
   bd <- case getContentType hs of
     ContentType "multipart" _ ps ->
       case getBoundary ps of
-        Just b -> multipart_body b <* sep <?> "nested multipart_body"
+        Just b -> multipart_body b sep <?> "nested multipart_body"
         _      -> fail "multipart content with no boundary"
     ContentType "text" _ ps -> do
       bd <- case getEncoding hs of
@@ -75,17 +75,19 @@ body_part sep = named "body_part" $ do
   return $ Part hs bd
 
 binary_body :: Parser () -> Parser ByteString
-binary_body sep = S.concat <$> manyTill takeLine sep
+binary_body = fmap (S.concat . filter (/="\n")) . takeLines
 
 binary_text_body :: Parser () -> Parser ByteString
-binary_text_body sep = S.unlines <$> manyTill takeLine sep
+binary_text_body = fmap S.concat . takeLines
 
-takeLine :: Parser ByteString
-takeLine = takeWhile1 (/='\r') <|> ("\r\n" *> pure "")
+takeLines :: Parser () -> Parser [ByteString]
+takeLines = manyTill' (takeWhile1 (/='\r') <|> (crlf *> pure "\n"))
 
 
 qp_body :: Parser () -> Parser ByteString
-qp_body sep = named "qp_body" $ S.concat <$> manyTill quoted_printable sep
+qp_body sep = do
+  s <- S.intercalate "\r\n" . filter (/="\n") <$> takeLines sep
+  either fail return $ parseOnly quoted_printable s
 
 preamble :: Parser ByteString
 preamble = discard_text
@@ -98,4 +100,4 @@ discard_text = do
   ch <- peekChar
   case ch of
     Just '-' -> fail "discard_text"
-    _        -> takeWhile (\c -> isText c || c=='\r' || c=='\n')
+    _        -> takeWhile1 (\c -> isText c || c=='\r' || c=='\n')
