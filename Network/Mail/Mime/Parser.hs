@@ -32,7 +32,7 @@ message = do
   bd <- case getContentType hs of
     ContentType "multipart" _ ps ->
       case getBoundary ps of
-        Just b -> multipart_body b
+        Just b -> multipart_body b <?> "main multipart_body"
         _      -> fail "multipart content with no boundary"
     _ -> BinaryBody <$> option "" body
   return (Message hs bd)

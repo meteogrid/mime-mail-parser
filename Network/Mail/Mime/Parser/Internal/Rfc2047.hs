@@ -28,7 +28,7 @@ import Network.Mail.Mime.Parser.Internal.Unicode
 import Prelude hiding (takeWhile)
 
 encoded_word :: Parser Text
-encoded_word = between "=?" "?=" $ do
+encoded_word = named "encoded_word" . between "=?" "?=" $ do
   charset <- fmap S.unpack $ takeWhile1 (/='?')
   encoding <- between "?" "?" (oneOf "qQbB")
   case toLower encoding of

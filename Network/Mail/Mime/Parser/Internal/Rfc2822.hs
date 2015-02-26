@@ -605,29 +605,29 @@ rfc2822_fields = many rfc2822_field
 
 rfc2822_field :: Parser Field
 rfc2822_field
-    = From               <$> from
-  <|> Sender             <$> sender
-  <|> ReturnPath         <$> return_path
-  <|> ReplyTo            <$> reply_to
-  <|> To                 <$> to
-  <|> Cc                 <$> cc
-  <|> Bcc                <$> bcc
-  <|> MessageID          <$> message_id
-  <|> InReplyTo          <$> in_reply_to
-  <|> References         <$> references
-  <|> Subject            <$> subject
-  <|> Comments           <$> comments
-  <|> Keywords           <$> keywords
-  <|> Date               <$> orig_date
-  <|> ResentDate         <$> resent_date
-  <|> ResentFrom         <$> resent_from
-  <|> ResentSender       <$> resent_sender
-  <|> ResentTo           <$> resent_to
-  <|> ResentCc           <$> resent_cc
-  <|> ResentBcc          <$> resent_bcc
-  <|> ResentMessageID    <$> resent_msg_id
-  <|> Received           <$> received
-  <|> uncurry OtherField <$> optional_field
+    = From            <$> from
+  <|> Sender          <$> sender
+  <|> ReturnPath      <$> return_path
+  <|> ReplyTo         <$> reply_to
+  <|> To              <$> to
+  <|> Cc              <$> cc
+  <|> Bcc             <$> bcc
+  <|> MessageID       <$> message_id
+  <|> InReplyTo       <$> in_reply_to
+  <|> References      <$> references
+  <|> Subject         <$> subject
+  <|> Comments        <$> comments
+  <|> Keywords        <$> keywords
+  <|> Date            <$> orig_date
+  <|> ResentDate      <$> resent_date
+  <|> ResentFrom      <$> resent_from
+  <|> ResentSender    <$> resent_sender
+  <|> ResentTo        <$> resent_to
+  <|> ResentCc        <$> resent_cc
+  <|> ResentBcc       <$> resent_bcc
+  <|> ResentMessageID <$> resent_msg_id
+  <|> Received        <$> received
+  <|> uncurry Field   <$> optional_field
 
 -- ** The origination date field (section 3.6.1)
 
@@ -1155,29 +1155,29 @@ obs_addr_list   = do r1 <- many1 (   maybeOption address
 obs_fields :: Parser [Field]
 obs_fields
   = many
-    (   From                  <$> obs_from
-    <|> Sender                <$> obs_sender
-    <|> ReturnPath            <$> obs_return
-    <|> ReplyTo               <$> obs_reply_to
-    <|> To                    <$> obs_to
-    <|> Cc                    <$> obs_cc
-    <|> Bcc                   <$> obs_bcc
-    <|> MessageID             <$> obs_message_id
-    <|> InReplyTo             <$> obs_in_reply_to
-    <|> References            <$> obs_references
-    <|> Subject               <$> obs_subject
-    <|> Comments              <$> obs_comments
-    <|> Keywords . (:[])      <$> obs_keywords
-    <|> Date                  <$> obs_orig_date
-    <|> ResentDate            <$> obs_resent_date
-    <|> ResentFrom            <$> obs_resent_from
-    <|> ResentSender          <$> obs_resent_send
-    <|> ResentTo              <$> obs_resent_to
-    <|> ResentCc              <$> obs_resent_cc
-    <|> ResentBcc             <$> obs_resent_bcc
-    <|> ResentMessageID       <$> obs_resent_mid
-    <|> ObsReceived           <$> obs_received
-    <|> uncurry OtherField    <$> obs_optional
+    (   From            <$> obs_from
+    <|> Sender          <$> obs_sender
+    <|> ReturnPath      <$> obs_return
+    <|> ReplyTo         <$> obs_reply_to
+    <|> To              <$> obs_to
+    <|> Cc              <$> obs_cc
+    <|> Bcc             <$> obs_bcc
+    <|> MessageID       <$> obs_message_id
+    <|> InReplyTo       <$> obs_in_reply_to
+    <|> References      <$> obs_references
+    <|> Subject         <$> obs_subject
+    <|> Comments        <$> obs_comments
+    <|> Keywords . (:[])<$> obs_keywords
+    <|> Date            <$> obs_orig_date
+    <|> ResentDate      <$> obs_resent_date
+    <|> ResentFrom      <$> obs_resent_from
+    <|> ResentSender    <$> obs_resent_send
+    <|> ResentTo        <$> obs_resent_to
+    <|> ResentCc        <$> obs_resent_cc
+    <|> ResentBcc       <$> obs_resent_bcc
+    <|> ResentMessageID <$> obs_resent_mid
+    <|> ObsReceived     <$> obs_received
+    <|> uncurry Field   <$> obs_optional
     )
 
 

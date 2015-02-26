@@ -18,6 +18,7 @@ module Network.Mail.Mime.Parser.Internal.Common (
   , oneOf
   , isHorizontalSpace
   , readIntN
+  , named
   , sToLower
   , getContentType
   , getBoundary
@@ -25,6 +26,7 @@ module Network.Mail.Mime.Parser.Internal.Common (
   , getEncoding
   , getAttachments
   , getFilename
+  , getContentDisposition
   , module Data.Attoparsec.ByteString.Char8
 ) where
 
@@ -63,6 +65,8 @@ isHorizontalSpace c = c==' ' || c=='\t'
 trim :: Parser a -> Parser a
 trim = between skipSpace skipSpace
 
+named :: String -> Parser a -> Parser a
+named = flip (<?>)
 
 
 --
@@ -95,15 +99,17 @@ getAttachments body
   = case body of
       MultipartBody _ ps _ -> concat $ map go ps
       _ -> []
-  where go p = case p^.partBody of
-                 b@MultipartBody{} -> getAttachments b
-                 _ -> case getContentDisposition (p^.partHeaders) of
-                        Just (ContentDisposition Attachment _) -> [p]
-                        _                                      -> []
+  where
+    go p = case getContentType (p^.partHeaders) of
+             ContentType "multipart" "mixed" _ -> getAttachments (p^.partBody)
+             ContentType "multipart" "alternative" _ -> []
+             _ -> [p]
                   
 
 getFilename :: [Field] -> Maybe ByteString
-getFilename = firstJust . map (^?_Filename) . concat . map (^.cdParms)
+getFilename fs
+    = (firstJust . map (^?_Filename) . concat . map (^.cdParms) $ fs)
+  <|> (firstJust . map (^?_Name) . concat . map (^.ctParms) $ fs)
  
 defaultEncoding :: Encoding
 defaultEncoding = Binary7Bit

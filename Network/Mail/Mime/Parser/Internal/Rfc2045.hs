@@ -66,8 +66,8 @@ mechanism = stringCI "7bit"             *> pure Binary7Bit
        <|>  stringCI "binary"           *> pure Binary
        <|>  stringCI "quoted-printable" *> pure QuotedPrintable
        <|>  stringCI "base64"           *> pure Base64
-       <|> (OtherEncoding <$> x_token)
-       <|> (OtherEncoding <$> ietf_token)
+       <|> (Encoding <$> x_token)
+       <|> (Encoding <$> ietf_token)
 
 content_type_parm :: Parser ContentTypeParm
 content_type_parm = do

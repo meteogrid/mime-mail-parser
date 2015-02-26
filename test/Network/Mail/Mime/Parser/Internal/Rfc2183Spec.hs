@@ -16,7 +16,6 @@ module Network.Mail.Mime.Parser.Internal.Rfc2183Spec ( main, spec ) where
 import System.Time (CalendarTime(..), Month(..), Day(..))
 import Test.Hspec
 import Util
-import Data.ByteString.Char8 (ByteString)
 import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2183
 

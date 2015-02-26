@@ -43,7 +43,7 @@ module Network.Mail.Mime.Parser.Types (
   , mimeVerMinor
 
   -- |Prisms
-  , _OtherField
+  , _Field
   , _From
   , _Sender
   , _ReturnPath
@@ -111,7 +111,7 @@ data Message
 
 data Field
   -- | RFC2822 fields
-  = OtherField          ByteString Text
+  = Field               ByteString Text
   | From                [NameAddr]
   | Sender              NameAddr
   | ReturnPath          ByteString
@@ -210,13 +210,12 @@ data ContentDispositionParm
 
 
 data Encoding
-  = NoEncoding
-  | Base64
+  = Base64
   | QuotedPrintable
   | Binary
   | Binary8Bit
   | Binary7Bit
-  | OtherEncoding ByteString
+  | Encoding ByteString
   deriving (Eq, Show)
 
 makeLenses ''Message

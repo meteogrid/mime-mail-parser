@@ -39,6 +39,8 @@ Library
                         Network.Mail.Mime.Parser.Internal.Common
                         Network.Mail.Mime.Parser.Internal.Unicode
   Ghc-Options:          -Wall
+                        -fwarn-incomplete-patterns
+                        -fwarn-incomplete-uni-patterns
 
 Test-Suite test
   type:                 exitcode-stdio-1.0
@@ -53,4 +55,4 @@ Test-Suite test
                       , text-icu
                       , base64-bytestring
                       , lens
-  Ghc-Options:          -Wall
+  Ghc-Options:          -Wall -threaded -rtsopts
