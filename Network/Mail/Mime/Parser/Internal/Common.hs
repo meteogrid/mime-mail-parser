@@ -21,6 +21,7 @@ module Network.Mail.Mime.Parser.Internal.Common (
   , readIntN
   , named
   , quoted
+  , hex_octet
   , sToLower
   , getContentType
   , getBoundary
@@ -39,7 +40,7 @@ import Control.Lens hiding (noneOf)
 import Data.Attoparsec.ByteString.Char8 hiding (isHorizontalSpace, isEndOfLine)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
-import Data.Char (toLower)
+import Data.Char (toLower, chr)
 import Data.Maybe (catMaybes, fromMaybe, isJust)
 import Prelude hiding (take)
 import Network.Mail.Mime.Parser.Types
@@ -77,6 +78,12 @@ named = flip (<?>)
 
 quoted :: Parser a -> Parser a
 quoted = between "\"" "\""
+
+hex_octet :: Parser ByteString
+hex_octet
+    = "="
+ *> (take 2>>= either fail (return . S.singleton . chr) . parseOnly hexadecimal)
+
 
 --
 -- Utils

@@ -217,7 +217,7 @@ spec = parallel . sequence_ . map fixture_spec $ [
       , expectedHeaders = [
             From [NameAddr (Just "Ogone") "noreply@ogone.com"]
           , To [(NameAddr Nothing "info@testsite.com")]
-          -- , Subject "Ogone NIEUWE order Maurits PAYID: 951597484 / orderID: 456123 / status: 5"  FIXME
+          , Subject "Ogone NIEUWE order Maurits PAYID: 951597484 / orderID: 456123 / status: 5"
           ]
       , textMatches = [Count 1 "951597484"]
       }
@@ -279,7 +279,6 @@ spec = parallel . sequence_ . map fixture_spec $ [
             }
           ]
       }
-  {- FIXME
   , fixture {
         mailId          = "m0013"
       , expectedHeaders = [
@@ -301,7 +300,6 @@ spec = parallel . sequence_ . map fixture_spec $ [
             }
           ]
       }
-  -}
   ]
 
 parseIncrementally :: Parser a -> ByteString -> Either String a

@@ -202,7 +202,7 @@ spec = do
       parseIdemTest addr_spec "\"test\\blah\"@example.com" -- Any character can be escaped in a quoted string
       parseIdemTest addr_spec "\"test\\test\"@example.com" -- Any character can be escaped in a quoted string
       parseTest addr_spec "\"test\r\n blah\"@example.com"
-        `shouldReturn` "\"testblah\"@example.com"-- This is a valid quoted string with folding white space
+        `shouldReturn` "\"test blah\"@example.com"-- This is a valid quoted string with folding white space
       parseIdemTest addr_spec "_Yosemite.Sam@example.com"
       parseIdemTest addr_spec "_somename@example.com"
       parseTest addr_spec "a(a(b(c)d(e(f))g)h(i)j)@example.com" `shouldReturn` "a@example.com"

@@ -16,9 +16,8 @@
 module Network.Mail.Mime.Parser.Internal.Rfc2047 where
 
 
-import Control.Applicative (many, pure, (<$>), (*>), (<|>))
-import Data.Char (chr, toLower)
-import Data.ByteString.Char8 (ByteString)
+import Control.Applicative (many, pure, (*>), (<|>))
+import Data.Char (toLower)
 import Data.Text (Text)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as S
@@ -42,10 +41,6 @@ qEncodedText charset
         <|> takeWhile1 (\c -> c/='=' && c/='?' && c/='_')
         )
   >>= either fail return . toUnicode charset . S.concat
-
--- Copied from Rfc2045 to prevent circular dependency
-hex_octet :: Parser ByteString
-hex_octet = S.singleton . chr <$> ("=" *> hexadecimal)
 
 bEncodedText :: String -> Parser Text
 bEncodedText charset = do

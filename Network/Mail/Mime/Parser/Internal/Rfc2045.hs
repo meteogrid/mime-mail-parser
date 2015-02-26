@@ -172,9 +172,6 @@ ptextstring = S.concat <$> many1 (hex_octet <|> takeWhile1 isSafeChar)
 isSafeChar :: Char -> Bool
 isSafeChar c = (ord c >= 33 && ord c <= 60) || (ord c >= 62 && ord c <= 126)
 
-hex_octet :: Parser ByteString
-hex_octet = S.singleton . chr <$> ("=" *> hexadecimal)
-
 transport_padding :: Parser ByteString
 transport_padding = takeWhile isHorizontalSpace
 

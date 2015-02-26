@@ -109,8 +109,8 @@ quoted_pair     = obs_qp <|> do {_ <- char '\\';
 fws :: Parser ByteString
 fws = S.concat <$> many1 (choice [blanks, linebreak])
   where
-    blanks      = takeWhile1 isHorizontalSpace
-    linebreak   = crlf *> blanks *> pure ""
+    blanks      = takeWhile1 isHorizontalSpace *> pure " "
+    linebreak   = crlf *> blanks
 
 -- |Match any non-whitespace, non-control character except for \"@(@\",
 -- \"@)@\", and \"@\\@\". This is used to describe the legal content of
