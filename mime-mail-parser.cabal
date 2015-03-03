@@ -30,6 +30,7 @@ Library
                       , lens
   Exposed-Modules:      Network.Mail.Mime.Parser
   Other-Modules:        Network.Mail.Mime.Parser.Types
+                        Network.Mail.Mime.Parser.Util
                         Network.Mail.Mime.Parser.Internal.Rfc2045
                         Network.Mail.Mime.Parser.Internal.Rfc2046
                         Network.Mail.Mime.Parser.Internal.Rfc2047
