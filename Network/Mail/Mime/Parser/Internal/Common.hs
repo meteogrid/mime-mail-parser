@@ -110,18 +110,20 @@ getEncoding :: [Field] -> Encoding
 getEncoding = fromMaybe defaultEncoding
             . firstJust . map (^?_ContentTransferEncoding)
 
-getAttachments :: Body -> [Part]
-getAttachments body
-  = case body of
-      MultipartBody _ ps _ -> concat $ map go ps
-      _ -> []
+getAttachments :: Message -> [Part]
+getAttachments = goBody . (^.msgBody)
   where
-    go p = case getContentType (p^.partHeaders) of
-             ContentType "multipart" "alternative" _ -> []
-             ContentType "multipart" "mixed" _ -> getAttachments (p^.partBody)
-             ContentType "multipart" _       _ -> getAttachments (p^.partBody)
-             _ | isAttachment (p^.partHeaders) -> [p]
-             _ -> []
+    goBody body
+      = case body of
+          MultipartBody _ ps _ -> concat $ map goPart ps
+          _ -> []
+    goPart p
+      = case getContentType (p^.partHeaders) of
+          ContentType "multipart" "alternative" _ -> []
+          ContentType "multipart" "mixed" _ -> goBody (p^.partBody)
+          ContentType "multipart" _       _ -> goBody (p^.partBody)
+          _ | isAttachment (p^.partHeaders) -> [p]
+          _ -> []
                   
 isAttachment :: [Field] -> Bool
 isAttachment hs = dispositionMatches || hasName

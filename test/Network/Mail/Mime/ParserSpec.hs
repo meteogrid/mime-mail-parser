@@ -360,7 +360,7 @@ fixture_spec Fixture{..} = parallel $ describe mailId $ do
   forM_ (zip [0..] attachmentMatches) $ \(i,a) ->
     it ("attachment " ++ show i ++ " matches " ++ show a) $
       tryParse $ \parsed -> do
-        let atch = getAttachments (parsed^.msgBody) !! i
+        let atch = getAttachments parsed !! i
             size' = case atch^.partBody of
                       TextBody   t -> Just . fromIntegral $ T.length t
                       BinaryBody s -> Just . fromIntegral $ S.length s
