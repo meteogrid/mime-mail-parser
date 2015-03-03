@@ -62,7 +62,7 @@ lf               = char '\n'    <?> "linefeed"
 -- |Match the Internet newline @\\r\\n@.
 
 crlf            :: Parser ByteString
-crlf             = "\r\n" <?> "carriage return followed by linefeed"
+crlf             = "\n" <|> "\r\n" <?> "carriage return followed by linefeed"
 
 -- |Match any US-ASCII control character. That is
 -- any character with a decimal value in the range of [0..31,127].
