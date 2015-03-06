@@ -16,7 +16,7 @@
 module Network.Mail.Mime.Parser.Internal.Rfc2046 where
 
 
-import Control.Applicative ((<$>), (<*>), (*>), (<|>), pure, many)
+import Control.Applicative ((<$>), (<*>), (*>), (<|>), pure, many, optional)
 import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Base64 as B64
@@ -31,7 +31,7 @@ import Prelude hiding (takeWhile)
 
 message :: Parser Message
 message = do
-  optional envelope
+  _ <- optional envelope
   hs <- mime_message_headers
   Message <$> pure hs <*> body hs endOfInput
 
@@ -77,7 +77,7 @@ part sep = named "part" $ do
 
 body :: [Field] -> Parser () -> Parser Body
 body hs end = named "body" $ do
-  optional crlf
+  _ <- optional crlf
   bd <- case getContentType hs of
     ContentType "multipart" _ ps ->
       case getBoundary ps of

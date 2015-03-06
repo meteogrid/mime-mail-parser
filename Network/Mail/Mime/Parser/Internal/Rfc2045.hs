@@ -16,7 +16,8 @@
 module Network.Mail.Mime.Parser.Internal.Rfc2045 where
 
 
-import Control.Applicative (many, pure, (<$>), (<*>), (<*), (*>), (<|>))
+import Control.Applicative (
+  many, pure, optional, (<$>), (<*>), (<*), (*>), (<|>))
 import Data.Char (isAscii, ord)
 import Data.ByteString.Char8 (ByteString)
 import Data.Text (Text)

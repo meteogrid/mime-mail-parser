@@ -14,7 +14,6 @@ module Network.Mail.Mime.Parser.Internal.Common (
     noneOf
   , between
   , trim
-  , optional
   , oneOf
   , isHorizontalSpace
   , isEndOfLine
@@ -58,9 +57,6 @@ noneOf = satisfy . notInClass
 
 between :: Parser a -> Parser b -> Parser c -> Parser c
 between a b p = a *> p <* b
-
-optional :: Parser a -> Parser ()
-optional p = (p >> return ()) <|> return ()
 
 oneOf :: String -> Parser Char
 oneOf = satisfy . inClass

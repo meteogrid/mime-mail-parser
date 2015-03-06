@@ -18,7 +18,7 @@ module Network.Mail.Mime.Parser.Internal.Rfc2822 where
 import System.Time
 import Data.Char (ord)
 import Data.Maybe (catMaybes)
-import Control.Applicative (many, pure, (<$>), (<*), (*>), (<|>))
+import Control.Applicative (many, pure, optional, (<$>), (<*), (*>), (<|>))
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
