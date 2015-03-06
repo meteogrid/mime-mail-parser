@@ -109,7 +109,7 @@ quoted_pair     = obs_qp <|> do {_ <- char '\\';
 fws :: Parser ByteString
 fws = S.concat <$> many1 (choice [blanks, linebreak])
   where
-    blanks      = takeWhile1 isHorizontalSpace *> pure " "
+    blanks      = takeWhile1 isHorizontalSpace
     linebreak   = crlf *> blanks
 
 -- |Match any non-whitespace, non-control character except for \"@(@\",
@@ -247,12 +247,17 @@ utext = fmap S.singleton no_ws_ctl
 -- follows the actual 'utext' is /included/ in the returned string.
 
 unstructured :: Parser Text
-unstructured = do r1 <- fmap decodeUtf8 (option "" fws)
-                  r2 <- many (do r3 <- encoded_word <|> fmap decodeUtf8 utext
-                                 r4 <- fmap decodeUtf8 (option "" fws)
-                                 return (r3 <> r4))
-                  return (r1 <> T.concat r2)
-               <?> "unstructured text"
+unstructured
+  = do r1 <- fmap decodeUtf8 (option "" fws)
+       r2 <- many (encoded <|> unencoded)
+       return (r1 <> T.concat r2)
+    <?> "unstructured text"
+  where
+    encoded = encoded_word <* optional fws
+    unencoded = do
+      r1 <- fmap decodeUtf8 utext
+      r2 <- fmap decodeUtf8 (option "" fws)
+      return (r1 <> r2)
 
 
 -- * Date and Time Specification (section 3.3)
