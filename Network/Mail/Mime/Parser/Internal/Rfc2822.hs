@@ -205,6 +205,9 @@ qcontent        = takeWhile1 isQText <|> quoted_pair
 quoted_string   :: Parser ByteString
 quoted_string   = unfold quoted_string_text
 
+quoted_string_no_quotes   :: Parser ByteString
+quoted_string_no_quotes   = unfold quoted_string_text_no_quotes
+
 quoted_string_text   :: Parser ByteString
 quoted_string_text = (fmap (\s -> "\"" <> s <> "\"") 
                        quoted_string_text_no_quotes) <?> "quoted_string"
@@ -225,6 +228,10 @@ quoted_string_text_no_quotes = do
 
 word            :: Parser ByteString
 word            = unfold (atom <|> quoted_string)     <?> "word"
+
+word_no_quotes :: Parser ByteString
+word_no_quotes = unfold (atom <|> quoted_string_no_quotes)
+             <?> "word_no_quotes"
 
 -- |Match either one or more 'word's or an 'obs_phrase'.
 
@@ -484,7 +491,7 @@ group           = do _ <- display_name
 -- |Parse and return a 'phrase'.
 
 display_name    :: Parser Text
-display_name    = fmap T.unwords (quoted phrase <|> phrase)
+display_name    = fmap T.unwords phrase
                   <?> "display name"
 
 -- |Parse a list of 'mailbox' addresses, every two addresses being
@@ -955,15 +962,13 @@ obs_utext       = obs_text
 -- allows dots between tokens.
 
 obs_phrase      :: Parser [Text]
-obs_phrase      = do r1 <- encoded_word <|> wordT
+obs_phrase      = do let wordT = fmap decodeUtf8 word_no_quotes
+                     r1 <- encoded_word <|> wordT
                      r2 <- many $ choice [ encoded_word <|> wordT
                                          , string "." *> pure "."
-                                         , do { _ <- cfws; return "" }
+                                         , cfws *> pure ""
                                          ]
                      return (r1 : filter (not . T.null) r2)
-
-wordT :: Parser Text
-wordT = fmap decodeUtf8 word
 
 -- |Match a  \"phrase list\" syntax and return the list of 'String's
 -- that make up the phrase. In contrast to a 'phrase', the

@@ -24,16 +24,16 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "Rfc2822.quoted_pair" $
+  describe "quoted_pair" $
     it "can quote a nul byte" $
       parseIdemTest quoted_pair "\\\0"
 
-  describe "Rfc2822.date_time" $
+  describe "date_time" $
     it "parses hand-picked times correctly" $
       parseTest date_time "Fri, 21 Dec 2012 00:07:43 +0300" `shouldReturn`
         CalendarTime 2012 December 21 0 7 43 0 Friday 0 "" 10800 False
 
-  describe "Rfc2822.day" $ do
+  describe "day" $ do
     it "parses a hand-picked day-of-months correctly" $ do
       parseTest day "00" `shouldReturn` 0
       parseTest day "09" `shouldReturn` 9
@@ -46,7 +46,7 @@ spec = do
       parseFailure day "Mon"
       parseFailure day "Thu"
 
-  describe "Rfc2822.obs_mbox_list" $ do
+  describe "obs_mbox_list" $ do
     it "parses hand-picked inputs correctly" $ do
       parseTest obs_mbox_list "," `shouldReturn` []
       parseTest obs_mbox_list "Joe Doe <joe@example.org>,( \r\n bla),,jane@\r\n example.net \r\n (Jane Doe)," `shouldReturn`
@@ -55,19 +55,19 @@ spec = do
     it "fails properly on incomplete input" $
       parseFailure obs_mbox_list "foo@example.org"
 
-  describe "Rfc2822.subject" $ do
+  describe "subject" $ do
     it "consumes leading whitespace" $
       parseTest subject "Subject: foo\r\n" `shouldReturn` "foo"
     it "parses hand-picked inputs correctly" $
       parseTest subject "Subject: =?ISO-8859-1?B?SWYgeW91IGNhbiByZWFkIHRoaXMgeW8=?=\r\n  =?ISO-8859-2?B?dSB1bmRlcnN0YW5kIHRoZSBleGFtcGxlLg==?=\r\n" `shouldReturn` "If you can read this you understand the example."
 
-  describe "Rfc2822.comment" $
+  describe "comment" $
     it "consumes leading whitespace" $
       parseTest comments "Comments: foo\r\n" `shouldReturn` "foo"
 
   -- Most of the following test cases have been adapted from
   -- <http://hackage.haskell.org/package/email-validate>.
-  describe "Rfc2822.addr_spec" $
+  describe "addr_spec" $
     it "parses hand-picked inputs correctly" $ do
       parseFailure addr_spec "()[]\\;:,><@example.com" -- Disallowed Characters
       parseFailure addr_spec " -- test --@example.com" -- No spaces allowed in local part
@@ -264,13 +264,13 @@ spec = do
       parseIdemTest addr_spec "{_test_}@example.com"
       parseIdemTest addr_spec "~@example.com"
 
-  describe "Rfc2822.path" $ do
+  describe "path" $ do
     it "parses hand-picked inputs correctly" $
       parseTest path "  <joe@example.de>  " `shouldReturn` "<joe@example.de>"
     it "loses the route-part of an obsolete routing address" $
       parseTest path "<@example1.org,@example2.org:joe@example.org>" `shouldReturn` "<joe@example.org>"
 
-  describe "Rfc2822.dot_atom" $ do
+  describe "dot_atom" $ do
     it "consumes leading and trailing whitespace" $
       parseTest dot_atom " first.last " `shouldReturn` "first.last"
     it "does not allow interspersed whitespace" $ do
@@ -278,7 +278,7 @@ spec = do
       parseFailure dot_atom "first .last"
       parseFailure dot_atom "first. last"
 
-  describe "Rfc2822.local_part" $ do
+  describe "local_part" $ do
     it "consumes leading and trailing whitespace" $
       parseTest local_part " first.last " `shouldReturn` "first.last"
     it "consumes interspersed whitespace (obsolete syntax)" $ do
@@ -286,39 +286,44 @@ spec = do
       parseTest local_part " first .last " `shouldReturn` "first.last"
       parseTest local_part " first. last " `shouldReturn` "first.last"
 
-  describe "Rfc2822.return_path" $ do
+  describe "return_path" $ do
     it "parses hand-picked inputs correctly" $ do
       parseTest return_path "Return-Path: <joe@example.de>\r\n" `shouldReturn` "<joe@example.de>"
       parseTest return_path "Return-Path: <>\r\n" `shouldReturn` "<>"
     it "loses the route-part of an obsolete routing address" $
       parseTest return_path "Return-Path: <@example1.org,@example2.org:joe@example.org>\r\n" `shouldReturn` "<joe@example.org>"
 
-  describe "Rfc2822.word" $
+  describe "word" $
     it "parses hand-picked inputs correctly" $
       parseTest word "  foobar  " `shouldReturn` "foobar"
 
-  describe "Rfc2822.body" $
+  describe "body" $
     it "parses 8-bit characters correctly" $
       parseIdemTest body "abc äöüß def"
 
-  describe "Rfc2822.group" $
+  describe "group" $
     it "parses hand-picked inputs correctly" $
       parseTest group "my group: user1@example.org, user2@example.org;"
         `shouldReturn`
       [ NameAddr Nothing "user1@example.org"
       , NameAddr Nothing "user2@example.org"]
 
-  describe "Rfc2822.obs_angle_addr" $
+  describe "obs_angle_addr" $
     it "parses hand-picked inputs correctly" $
       parseTest obs_angle_addr "<@example1.org,@example2.org:joe@example.org>"
         `shouldReturn`
       "<joe@example.org>"
 
-  describe "Rfc2822.obs_mbox_list" $
+  describe "obs_mbox_list" $
     it "parses hand-picked inputs correctly" $ do
       parseTest obs_mbox_list "," `shouldReturn` []
       parseFailure obs_mbox_list "joe@example.org"
 
-  describe "Rfc2822.to" $
+  describe "to" $
     it "parses hand-picked inputs correctly" $ do
       parseTest to "To: =?ISO-8859-1?Q?Keld_J=F8rn_Simonsen?= <keld@dkuug.dk>\r\n" `shouldReturn` [NameAddr (Just "Keld J\248rn Simonsen") "keld@dkuug.dk"]
+      parseTest to "To: \"alberto@foobar.com\" <alberto@foobar.com>\r\n" `shouldReturn` [NameAddr (Just "alberto@foobar.com") "alberto@foobar.com"]
+
+  describe "display_name" $
+    it "parses hand-picked inputs correctly" $ do
+      parseTest display_name "\"alberto@foobar.com\"" `shouldReturn` "alberto@foobar.com"
