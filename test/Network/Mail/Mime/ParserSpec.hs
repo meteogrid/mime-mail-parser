@@ -18,7 +18,7 @@ module Network.Mail.Mime.ParserSpec ( main, spec ) where
 
 import Test.Hspec
 import Control.Lens
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Data.Text (Text)
 import Data.Monoid ((<>))
 import qualified Data.Text as T
@@ -300,6 +300,25 @@ spec = parallel . sequence_ . map fixture_spec $ [
             }
           ]
       }
+  , fixture {
+        mailId          = "m0014"
+      , expectedHeaders = [
+            From [NameAddr (Just "Doug Sauder") "dwsauder@example.com"]
+          , To [(NameAddr (Just "Joe Blow") "blow@example.com")]
+          , Subject "Test message from Netscape Communicator 4.7"
+          ]
+      , textMatches = [Count 1 "Die Hasen und die"]
+      , attachmentMatches = [
+          AttachmentMatch {
+              filename       = Just "HasenundFrösche.txt"
+            , size           = 747
+            , fileMatches    = [Count 2 "noch"]
+            , contentType    = "text"
+            , contentSubtype = "plain"
+            , contentDisposition = Just Inline
+            }
+          ]
+      }
   ]
 
 parseIncrementally :: Parser a -> ByteString -> Either String a
@@ -366,7 +385,12 @@ fixture_spec Fixture{..} = parallel $ describe mailId $ do
                       BinaryBody s -> Just . fromIntegral $ S.length s
                       _            -> Nothing 
         getFilename (atch^.partHeaders) `shouldBe` filename a
-        size' `shouldBe` Just (size a)
+        when (size' /= Just (size a)) $
+          expectationFailure $ concat [
+              "Part size did not match: "
+            , show size', " /= ", show (Just (size a))
+            , ". ", show (atch^.partBody)
+            ]
         let ContentType ct cst _ = getContentType (atch^.partHeaders)
         let mCd = getContentDisposition (atch^.partHeaders)
         ct `shouldBe` contentType a

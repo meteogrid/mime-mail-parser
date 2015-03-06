@@ -132,6 +132,12 @@ isAttachment hs = dispositionMatches || hasName
           _                                      -> False
     hasName = isJust (getFilename hs)
 
+isInline :: [Field] -> Bool
+isInline hs
+  = case getContentDisposition hs of
+          Just (ContentDisposition Inline     _) -> True
+          _                                      -> False
+
 getTextBody :: ByteString -> Message -> Maybe Body
 getTextBody subtype m = go (m^.msgHeaders) (m^.msgBody)
   where
@@ -142,7 +148,8 @@ getTextBody subtype m = go (m^.msgHeaders) (m^.msgBody)
           TextBody{} -> 
             case getContentType fs of
               ContentType "text" st _
-                | st==subtype && not (isAttachment fs) -> Just b
+                | st==subtype && (isInline fs || not (isAttachment fs)) ->
+                  Just b
               _ -> Nothing
           _ -> Nothing
 

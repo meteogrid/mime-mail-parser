@@ -16,8 +16,10 @@
 module Network.Mail.Mime.Parser.Internal.Rfc2046 where
 
 
-import Control.Applicative ((<$>), (<*>), (*>), (<|>), pure, many, optional)
+import Control.Applicative (
+  (<$>), (<*), (<*>), (*>), (<|>), pure, many, optional)
 import Data.ByteString.Char8 (ByteString)
+import Data.Monoid ((<>))
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Base64 as B64
 import Network.Mail.Mime.Parser.Internal.Common
