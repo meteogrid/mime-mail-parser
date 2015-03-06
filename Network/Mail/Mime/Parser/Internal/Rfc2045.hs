@@ -19,12 +19,16 @@ module Network.Mail.Mime.Parser.Internal.Rfc2045 where
 import Control.Applicative (many, pure, (<$>), (<*>), (<*), (*>), (<|>))
 import Data.Char (isAscii, ord)
 import Data.ByteString.Char8 (ByteString)
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as S
 import Data.Monoid ((<>))
 import Network.Mail.Mime.Parser.Internal.Common
 import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2234
 import Network.Mail.Mime.Parser.Internal.Rfc2822
+import Network.Mail.Mime.Parser.Internal.Rfc2047 (encoded_word)
 import Prelude hiding (takeWhile)
 
 attribute :: Parser ByteString
@@ -71,18 +75,30 @@ mechanism = stringCI "7bit"             *> pure Binary7Bit
 
 content_type_parm :: Parser ContentTypeParm
 content_type_parm = do
-  (attr, val) <- parameter
-  return $ case attr of
-    "boundary" -> Boundary val
-    "name"     -> Name val
-    "charset"  -> Charset val
-    _          -> ContentTypeParm attr val
+  (attr, val) <- parameterT
+  case (attr,val) of
+    ("boundary", Left v)  -> return $ Boundary v
+    ("boundary", Right _) -> fail "Unexpected Text on Boundary"
+    ("name", v)           -> return . Name . either decodeUtf8 id $ v
+    ("charset", Left v)   -> return $ Charset v
+    ("charset", Right _)  -> fail "Unexpected Text on Charset"
+    (a, Left v)           -> return $ ContentTypeParm a v
+    (_, Right _)          -> fail "Unexpected Text on ContentTypeParm"
 
 someparameter :: Parser ByteString -> Parser a -> Parser (ByteString, a)
 someparameter a v = (,) <$> a <*> ((trim "=") *> v)
 
+type PerhapsText = Either ByteString Text
+
 parameter :: Parser (ByteString, ByteString)
 parameter = someparameter attribute value
+
+parameterT :: Parser (ByteString, PerhapsText)
+parameterT = someparameter attribute valueT
+
+valueT :: Parser PerhapsText
+valueT = (Right <$> encoded) <|> (Left  <$> value)
+  where encoded = T.concat <$> quoted (many (optional fws *> encoded_word))
 
 value :: Parser ByteString
 value = token <|> quoted_string_text_no_quotes

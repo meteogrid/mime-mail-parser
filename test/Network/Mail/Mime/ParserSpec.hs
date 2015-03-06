@@ -423,7 +423,7 @@ data Match
 
 data AttachmentMatch
   = AttachmentMatch {
-        filename           :: Maybe ByteString
+        filename           :: Maybe Text
       , size               :: Integer
       , fileMatches        :: [Match]
       , contentType        :: ByteString

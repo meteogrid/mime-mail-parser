@@ -213,13 +213,11 @@ quoted_string_text = (fmap (\s -> "\"" <> s <> "\"")
                        quoted_string_text_no_quotes) <?> "quoted_string"
 
 quoted_string_text_no_quotes :: Parser ByteString
-quoted_string_text_no_quotes = do
-  _ <- dquote
+quoted_string_text_no_quotes = quoted $ do
   r1 <- many (do r1 <- option "" fws
                  r2 <- qcontent
                  return (r1 <> r2))
   r2 <- option "" fws
-  _ <- dquote
   return (S.concat r1 <> r2)
 
 -- * Miscellaneous tokens (section 3.2.6)

@@ -39,6 +39,7 @@ import Control.Applicative ((*>), (<*), (<|>))
 import Control.Lens hiding (noneOf)
 import Data.Attoparsec.ByteString.Char8 hiding (isHorizontalSpace, isEndOfLine)
 import Data.ByteString.Char8 (ByteString)
+import Data.Text (Text)
 import qualified Data.ByteString.Char8 as S
 import Data.Char (toLower, chr)
 import Data.Maybe (catMaybes, fromMaybe, isJust)
@@ -149,7 +150,7 @@ getTextBody subtype m = go (m^.msgHeaders) (m^.msgBody)
               _ -> Nothing
           _ -> Nothing
 
-getFilename :: [Field] -> Maybe ByteString
+getFilename :: [Field] -> Maybe Text
 getFilename fs
     = (firstJust . map (^?_Filename) . concat . map (^.cdParms) $ fs)
   <|> (firstJust . map (^?_Name) . concat . map (^.ctParms) $ fs)

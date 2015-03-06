@@ -18,6 +18,7 @@ module Network.Mail.Mime.Parser.Internal.Rfc2183 where
 
 
 import Control.Applicative (many, pure, (<$>), (<*>), (*>), (<|>))
+import Data.Text.Encoding (decodeUtf8)
 import Network.Mail.Mime.Parser.Internal.Common
 import Network.Mail.Mime.Parser.Types
 import Network.Mail.Mime.Parser.Internal.Rfc2822
@@ -47,7 +48,8 @@ content_disposition_parm
 
 filename_parm :: Parser ContentDispositionParm
 filename_parm
-  = Filename . snd <$> someparameter (stringCI "filename") value
+    = Filename . either decodeUtf8 id . snd
+  <$> someparameter (stringCI "filename") valueT
 
 creation_date_parm :: Parser ContentDispositionParm
 creation_date_parm

@@ -188,7 +188,7 @@ data Body
 
 data ContentTypeParm
   = Boundary         ByteString
-  | Name             ByteString
+  | Name             Text
   | Charset          ByteString
   | ContentTypeParm  ByteString ByteString
   deriving (Show, Eq)
@@ -200,7 +200,7 @@ data ContentDispositionType
   deriving (Show, Eq)
 
 data ContentDispositionParm
-  = Filename                ByteString
+  = Filename                Text
   | CreationDate            CalendarTime
   | ModificationDate        CalendarTime
   | ReadDate                CalendarTime
