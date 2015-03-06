@@ -110,8 +110,12 @@ binary_text_body = fmap S.concat . takeLines
 takeLines :: Parser () -> Parser [ByteString]
 takeLines = manyTill' (takeWhile1 (/='\r') <|> (crlf *> pure "\n"))
 
+takeLines2 :: Parser () -> Parser [ByteString]
+takeLines2
+  = manyTill' (((<>) <$> takeWhile1 (/='\r') <*> crlf) <|> crlf)
+
 
 qp_body :: Parser () -> Parser ByteString
 qp_body sep = do
-  s <- S.intercalate "\r\n" . filter (/="\n") <$> takeLines sep
+  s <- S.concat <$> takeLines2 sep
   either fail return $ parseOnly quoted_printable s
