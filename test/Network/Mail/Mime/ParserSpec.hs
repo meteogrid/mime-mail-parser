@@ -311,10 +311,40 @@ spec = parallel . sequence_ . map fixture_spec $ [
       , attachmentMatches = [
           AttachmentMatch {
               filename       = Just "HasenundFrösche.txt"
-            , size           = 747
+            --, size           = 747
+            , size           = 738 --difference is due eols which we
+                                   --normalize to unix-style
             , fileMatches    = [Count 2 "noch"]
             , contentType    = "text"
             , contentSubtype = "plain"
+            , contentDisposition = Just Inline
+            }
+          ]
+      }
+  , fixture {
+        mailId          = "m0015"
+      , expectedHeaders = [
+            From [NameAddr (Just "Vitamart.ca") "service@vitamart.ca"]
+          , To [(NameAddr Nothing "me@somewhere.com")]
+          , Subject "Up to $30 Off Multivitamins!"
+          ]
+      , textMatches = [Count 1 "Hi,"]
+      , htmlMatches = [Count 1 "<strong>*How The Sale Works</strong>"]
+      , attachmentMatches = [
+          AttachmentMatch {
+              filename       = Nothing
+            , size           = 2616
+            , fileMatches    = [Count 1 "$150+ of Multivitamins"]
+            , contentType    = "text"
+            , contentSubtype = "plain"
+            , contentDisposition = Just Inline
+            }
+        , AttachmentMatch {
+              filename       = Nothing
+            , size           = 17341
+            , fileMatches    = [Count 82 "div"]
+            , contentType    = "text"
+            , contentSubtype = "html"
             , contentDisposition = Just Inline
             }
           ]

@@ -33,13 +33,12 @@ import Prelude hiding (takeWhile)
 
 message :: Parser Message
 message = do
-  _ <- optional envelope
+  envelope
   hs <- mime_message_headers
   Message <$> pure hs <*> body hs endOfInput
 
 envelope :: Parser ()
-envelope = ("From " *> takeWhile1 (/='\r') <|> takeWhile1 isHorizontalSpace)
-         *> crlf *> pure ()
+envelope = manyTill' (takeWhile1 (/='\r')) crlf *> pure ()
 
 multipart_body :: ByteString -> Parser () -> Parser Body
 multipart_body boundary endMarker = named "multipart_body" $ do
@@ -105,7 +104,9 @@ binary_body :: Parser () -> Parser ByteString
 binary_body = fmap S.concat . takeLines
 
 binary_text_body :: Parser () -> Parser ByteString
-binary_text_body = fmap S.concat . takeLinesLE "\n"
+binary_text_body = fmap unlines' . takeLines
+  where unlines' (x:[]) = x <> "\n"
+        unlines' l      = S.intercalate "\n" l
 
 -- takeLines until endMarker is found.
 -- must handle blank empty lines between valid lines but not before endMarker
@@ -114,15 +115,11 @@ takeLines :: Parser () -> Parser [ByteString]
 takeLines endMarker = go
   where
     go = (endMarker *> pure [])
-     <|> (crlf *> (("":) <$> go))
      <|> (do l <- takeWhile1 (/='\r')
-             choice [ endMarker *> pure [l]
-                    , crlf *> fmap (l:) go])
-
-takeLinesLE :: ByteString -> Parser () -> Parser [ByteString]
-takeLinesLE le = fmap (map (<>le)) . takeLines
+             (endMarker *> pure [l]) <|> (crlf *> fmap (l:) go))
+     <|> (crlf *> (("":) <$> go))
 
 qp_body :: Parser () -> Parser ByteString
 qp_body sep = do
-  s <- fmap S.concat (takeLinesLE "\r\n" sep)
+  s <- S.intercalate "\r\n" <$> takeLines sep
   either fail return $ parseOnly quoted_printable s

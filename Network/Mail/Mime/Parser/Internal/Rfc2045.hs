@@ -161,7 +161,7 @@ mime_version
 quoted_printable :: Parser ByteString
 quoted_printable = do
   l <- qp_line
-  ls <- many ((<>) <$> crlf <*> qp_line)
+  ls <- many ((S.cons '\n') <$> (crlf *> qp_line))
   return $ l <> S.concat ls
 
 
