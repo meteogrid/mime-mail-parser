@@ -33,12 +33,13 @@ import Prelude hiding (takeWhile)
 
 message :: Parser Message
 message = do
-  envelope
+  _ <- optional envelope
   hs <- mime_message_headers
   Message <$> pure hs <*> body hs endOfInput
 
 envelope :: Parser ()
-envelope = manyTill' (takeWhile1 (/='\r')) crlf *> pure ()
+envelope = ("From " *> takeWhile1 (/='\r') <|> takeWhile1 isHorizontalSpace)
+         *> crlf *> pure ()
 
 multipart_body :: ByteString -> Parser () -> Parser Body
 multipart_body boundary endMarker = named "multipart_body" $ do
