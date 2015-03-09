@@ -52,7 +52,7 @@ spec = do
     it "parses hand-picked inputs correctly" $ do
       let parseTest' = parseTest quoted_printable
       parseTest' "Now's the time =\r\nfor all folk to come=\r\n to the aid of their country." `shouldReturn` "Now's the time for all folk to come to the aid of their country."
-      parseTest' "Now's the time\r\nfor all folk to come=\r\n to the aid of their country.\r\n" `shouldReturn` "Now's the time\nfor all folk to come to the aid of their country.\n"
+      parseTest' "Now's the time\r\nfor all folk to come=\r\n to the aid of their country.\r\n" `shouldReturn` "Now's the time\r\nfor all folk to come to the aid of their country.\r\n"
       parseTest' "Vilar=C3=B3" `shouldReturn` "Vilar\195\179"
       parseTest' "" `shouldReturn` ""
       parseTest' "<table background=3D\"cid:4c837ed463ad29c820668e835a270e8a.jpg\" width=3D\"100=\r\n%\">" `shouldReturn` "<table background=\"cid:4c837ed463ad29c820668e835a270e8a.jpg\" width=\"100%\">"

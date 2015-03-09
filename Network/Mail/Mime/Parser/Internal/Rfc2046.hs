@@ -17,7 +17,7 @@ module Network.Mail.Mime.Parser.Internal.Rfc2046 where
 
 
 import Control.Applicative (
-  (<$>), (<*), (<*>), (*>), (<|>), pure, many, optional)
+  (<$>), (<*>), (*>), (<|>), pure, many, optional)
 import Data.ByteString.Char8 (ByteString)
 import Data.Monoid ((<>))
 import qualified Data.ByteString.Char8 as S
@@ -102,20 +102,27 @@ body hs end = named "body" $ do
   return bd
 
 binary_body :: Parser () -> Parser ByteString
-binary_body = fmap (S.concat . filter (/="\n")) . takeLines
+binary_body = fmap S.concat . takeLines
 
 binary_text_body :: Parser () -> Parser ByteString
-binary_text_body = fmap S.concat . takeLines
+binary_text_body = fmap S.concat . takeLinesLE "\n"
 
+-- takeLines until endMarker is found.
+-- must handle blank empty lines between valid lines but not before endMarker
+-- since the endMarker might start with a crlf
 takeLines :: Parser () -> Parser [ByteString]
-takeLines = manyTill' (takeWhile1 (/='\r') <|> (crlf *> pure "\n"))
+takeLines endMarker = go
+  where
+    go = (endMarker *> pure [])
+     <|> (crlf *> (("":) <$> go))
+     <|> (do l <- takeWhile1 (/='\r')
+             choice [ endMarker *> pure [l]
+                    , crlf *> fmap (l:) go])
 
-takeLines2 :: Parser () -> Parser [ByteString]
-takeLines2
-  = manyTill' (((<>) <$> takeWhile1 (/='\r') <*> crlf) <|> crlf)
-
+takeLinesLE :: ByteString -> Parser () -> Parser [ByteString]
+takeLinesLE le = fmap (map (<>le)) . takeLines
 
 qp_body :: Parser () -> Parser ByteString
 qp_body sep = do
-  s <- S.concat <$> takeLines2 sep
+  s <- fmap S.concat (takeLinesLE "\r\n" sep)
   either fail return $ parseOnly quoted_printable s

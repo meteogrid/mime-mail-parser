@@ -37,3 +37,9 @@ spec = do
       parseTest' "foo\r\nbar\r\n" `shouldReturn` "foo\nbar\n"
       parseTest' "\r\n\r\n" `shouldReturn` "\n\n"
       parseTest' "" `shouldReturn` ""
+
+  describe "Rfc2046.takeLines" $ do
+    let parseTest' = parseTest $ takeLines endOfInput
+    it "parses hand-picked inputs correctly" $ do
+      parseTest' "foo\r\nbar\r\n" `shouldReturn` ["foo","bar"]
+      parseTest' "foo\r\n\r\nbar\r\n" `shouldReturn` ["foo","","bar"]
