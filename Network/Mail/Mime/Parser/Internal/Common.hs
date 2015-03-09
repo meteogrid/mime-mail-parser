@@ -31,6 +31,7 @@ module Network.Mail.Mime.Parser.Internal.Common (
   , getFilename
   , getContentDisposition
   , firstJust
+  , ensureCRLFeols
   , module Data.Attoparsec.ByteString.Char8
 ) where
 
@@ -173,3 +174,10 @@ headMay (x:_) = Just x
 
 firstJust :: [Maybe a] -> Maybe a
 firstJust = headMay . catMaybes
+
+ensureCRLFeols :: ByteString -> ByteString
+ensureCRLFeols = S.intercalate "\r\n" . map go  . S.split '\n'
+  where
+    go s = case S.unsnoc s of
+            Just (s', '\r') -> s'
+            _               -> s
