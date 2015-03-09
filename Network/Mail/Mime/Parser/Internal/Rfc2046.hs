@@ -114,10 +114,9 @@ binary_text_body = fmap unlines' . takeLines
 takeLines :: Parser () -> Parser [ByteString]
 takeLines endMarker = go
   where
-    go = (endMarker *> pure [])
-     <|> (do l <- takeWhile1 (/='\r')
-             (endMarker *> pure [l]) <|> (crlf *> fmap (l:) go))
-     <|> (crlf *> (("":) <$> go))
+    go = endMarker *> pure []
+     <|> do l <- takeWhile (/='\r')
+            endMarker *> pure [l] <|> crlf *> fmap (l:) go
 
 qp_body :: Parser () -> Parser ByteString
 qp_body sep = do
