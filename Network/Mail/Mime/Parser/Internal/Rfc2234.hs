@@ -139,4 +139,4 @@ quoted_string    = do _ <- dquote
                       return ("\"" <> S.concat r <> "\"")
                    <?> "quoted string"
   where
-  qcont = takeWhile1 (`notElem` "\\\"\r\n") <|> quoted_pair
+  qcont = takeWhile1 (`notElem` ("\\\"\r\n"::String)) <|> quoted_pair

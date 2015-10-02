@@ -161,7 +161,7 @@ atext           = alpha <|> digit <|> oneOf "!#$%&'*+-/=?^_`{|}~"
 atextstring :: Parser ByteString
 atextstring = takeWhile1 (\c -> isAsciiAlpha c 
                              || isDigit c
-                             || c `elem` "!#$%&'*+-/=?^_`{|}~")
+                             || c `elem` ("!#$%&'*+-/=?^_`{|}~"::String))
 
 -- |Match one or more 'atext' characters and skip any preceeding or
 -- trailing 'cfws'.
